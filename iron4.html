@@ -1,0 +1,2224 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小五科學：鐵釘生鏽實驗 AI 實驗顧問系統 (相片調整大小 + 檢查表 + 即時監控版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f0f7ff;
+    }
+    .pulse-mic {
+      animation: pulse-ring 1.2s infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .vocab-chip:active {
+      transform: scale(0.95);
+    }
+    #sketchCanvas {
+      touch-action: none;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+  <!-- 頂部導覽列 -->
+  <header class="bg-sky-700 text-white shadow-md py-3 px-4">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <span class="text-2xl">👨‍🔬</span>
+        <div>
+          <h1 class="text-lg md:text-xl font-bold tracking-wide">小五科學：鐵釘生鏽實驗 AI 實驗顧問（陳博士）</h1>
+          <p class="text-xs text-sky-100">支援拍圖調整大小提問、微軟 WanLung (雲龍) 廣東話男聲 | A 組 vs B 組公平測試探究系統</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="groupBadge" class="hidden bg-sky-900/70 text-sky-100 text-sm px-3 py-1 rounded-full font-medium"></span>
+        <button onclick="openTeacherModal()" class="text-xs bg-sky-800 hover:bg-sky-900 px-3 py-1.5 rounded-lg border border-sky-500 transition">
+          👩‍🏫 教師後台
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容容器 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-4 flex flex-col">
+
+    <!-- ================= 畫面 1：小組登入介面 ================= -->
+    <section id="loginView" class="my-auto bg-white rounded-2xl shadow-lg border border-sky-100 p-6 md:p-8 max-w-md w-full mx-auto">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-sky-100 text-sky-700 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+          🧪
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">小組實驗登記</h2>
+        <p class="text-sm text-slate-500 mt-1">請選擇你們的班別與組別以開始與陳博士討論實驗</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">班別 (5A - 5E)</label>
+          <select id="classSelect" class="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-lg font-medium focus:border-sky-600 focus:outline-none">
+            <option value="">-- 請選擇班別 --</option>
+            <option value="5A">5A 班</option>
+            <option value="5B">5B 班</option>
+            <option value="5C">5C 班</option>
+            <option value="5D">5D 班</option>
+            <option value="5E">5E 班</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">組別 (第一組 - 第十組)</label>
+          <select id="groupSelect" class="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-lg font-medium focus:border-sky-600 focus:outline-none">
+            <option value="">-- 請選擇組別 --</option>
+          </select>
+        </div>
+
+        <button onclick="startSession()" class="w-full bg-sky-600 hover:bg-sky-700 active:scale-[0.99] text-white font-bold text-lg py-3.5 rounded-xl shadow-md transition mt-2">
+          進入實驗顧問室 🚀
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= 畫面 2：小組對話、相片提問、純視覺示意圖與雙軌畫板介面 ================= -->
+    <section id="chatView" class="hidden flex-1 flex flex-col bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
+      
+      <!-- 頂部狀態與剩餘次數列 -->
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2 text-sm text-slate-700">
+          <span class="font-bold text-sky-800">探究任務：</span>
+          <span>設計「A 組」與「B 組」公平測試，找出鐵釘生鏽的必要條件</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="turnBadge" class="bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1 rounded-full text-sm font-bold">
+            剩餘提問機會：3 / 3 次
+          </div>
+          <button onclick="logoutGroup()" class="text-xs text-slate-500 hover:text-slate-800 underline">切換組別</button>
+        </div>
+      </div>
+
+      <!-- 對話訊息捲動區 -->
+      <div id="chatContainer" class="flex-1 p-4 md:p-6 overflow-y-auto space-y-5 max-h-[48vh]">
+        <!-- 初始歡迎訊息由 JS 注入 -->
+      </div>
+
+      <!-- 底部：探究方向選擇卡 + 器材詞語 + 相片預覽 + 拍圖/語音/文字輸入區 -->
+      <div id="inputArea" class="border-t border-slate-200 bg-slate-50 p-3 md:p-4 space-y-2.5">
+        
+        <div class="space-y-1.5">
+          <!-- 零劇透探究方向選擇卡（A 組 / B 組） -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-bold text-sky-800 mr-1">🧭 選擇探究方向開頭：</span>
+            <button type="button" onclick="insertSentenceTemplate('我們想測試「水分」對生鏽的影響。A 組會放鐵釘和___，B 組會放鐵釘和___。')"
+              class="vocab-chip text-xs bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 rounded-full px-3 py-1 font-bold shadow-sm transition">
+              💡 測試「水分」：A 組放...，B 組放...
+            </button>
+            <button type="button" onclick="insertSentenceTemplate('我們想測試「空氣」對生鏽的影響。A 組會放鐵釘和___，B 組會放鐵釘和___。')"
+              class="vocab-chip text-xs bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 rounded-full px-3 py-1 font-bold shadow-sm transition">
+              💡 測試「空氣」：A 組放...，B 組放...
+            </button>
+            <button id="basicHelperBtn" type="button" onclick="insertSentenceTemplate('我們打算改用兩個透明瓶，A 組放鐵釘和___，B 組放鐵釘和___。')"
+              class="hidden vocab-chip text-xs bg-teal-100 hover:bg-teal-200 text-teal-900 border border-teal-300 rounded-full px-3 py-1 font-bold shadow-sm transition">
+              🌱 基礎提示：改用兩個透明瓶做對比
+            </button>
+          </div>
+
+          <!-- 無劇透純器材名詞標籤 -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-bold text-slate-500 mr-1">🧰 器材詞語（點擊填入）：</span>
+            <button type="button" onclick="insertVocab('A 組')" class="vocab-chip text-xs bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-full px-2.5 py-1 font-bold shadow-sm transition">+ A 組</button>
+            <button type="button" onclick="insertVocab('B 組')" class="vocab-chip text-xs bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-full px-2.5 py-1 font-bold shadow-sm transition">+ B 組</button>
+            <button type="button" onclick="insertVocab('鐵釘')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 鐵釘</button>
+            <button type="button" onclick="insertVocab('自來水')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 自來水</button>
+            <button type="button" onclick="insertVocab('透明瓶')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 透明瓶</button>
+            <button type="button" onclick="insertVocab('瓶蓋')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 瓶蓋</button>
+            <button type="button" onclick="insertVocab('乾燥劑')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 乾燥劑</button>
+            <button type="button" onclick="insertVocab('冷開水')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 冷開水</button>
+            <button type="button" onclick="insertVocab('植物油')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 植物油</button>
+            <button type="button" onclick="insertVocab('空氣')" class="vocab-chip text-xs bg-white hover:bg-sky-50 text-slate-700 border border-slate-300 rounded-full px-2.5 py-1 font-medium shadow-sm transition">+ 空氣</button>
+          </div>
+        </div>
+
+        <!-- 對話區相片縮圖預覽列 -->
+        <div id="chatPhotoPreviewBar" class="hidden flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-xl p-2">
+          <div class="flex items-center gap-2.5">
+            <img id="chatPhotoPreviewImg" src="" alt="待發送相片預覽" class="h-14 w-20 object-cover rounded-lg border border-indigo-300 bg-white" />
+            <div class="text-xs">
+              <p class="font-bold text-indigo-900">📸 已附上調整好大小的實驗設計圖</p>
+              <p class="text-indigo-700">可直接按「發送」讓陳博士閱讀，或在下方補充文字說明。</p>
+            </div>
+          </div>
+          <button type="button" onclick="clearChatPhoto()" class="text-xs bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold px-2.5 py-1.5 rounded-lg transition">
+            ✕ 移除相片
+          </button>
+        </div>
+
+        <!-- 隱藏的對話相片上傳 Input -->
+        <input id="chatPhotoInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="handleChatPhotoSelected(event)" />
+
+        <div class="flex items-end gap-2">
+          <!-- 拍圖提問按鈕 -->
+          <button id="chatPhotoBtn" type="button" onclick="document.getElementById('chatPhotoInput').click()" title="拍下或上傳實驗設計圖給陳博士閱讀"
+            class="shrink-0 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-2 border-indigo-200 rounded-xl px-3 py-3 flex flex-col items-center justify-center transition">
+            <span class="text-xl leading-none">📷</span>
+            <span class="text-[11px] font-bold mt-1">拍圖提問</span>
+          </button>
+
+          <button id="micBtn" type="button" onclick="toggleSpeech()" title="點擊開始廣東話語音輸入"
+            class="shrink-0 bg-rose-50 hover:bg-rose-100 text-rose-600 border-2 border-rose-200 rounded-xl px-3 py-3 flex flex-col items-center justify-center transition">
+            <span class="text-xl leading-none">🎤</span>
+            <span id="micLabel" class="text-[11px] font-bold mt-1">廣東話語音</span>
+          </button>
+
+          <textarea id="userInput" rows="2"
+            placeholder="輸入你們的「A 組」與「B 組」設計，或按左側「📷 拍圖提問」上傳相片給陳博士閱讀..."
+            class="flex-1 rounded-xl border-2 border-slate-200 px-3.5 py-2.5 text-base focus:border-sky-600 focus:outline-none resize-none"
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendStudentMessage();}"></textarea>
+
+          <button id="sendBtn" onclick="sendStudentMessage()"
+            class="shrink-0 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-bold px-5 py-4 rounded-xl shadow transition">
+            發送 ➔
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= 完成 3 次或達標後的鎖定區：演進對比圖 + 檢查清單 + 雙軌畫板/拍照上傳 ================= -->
+      <div id="completedBanner" class="hidden bg-emerald-50/90 border-t-2 border-emerald-200 p-4 md:p-5 overflow-y-auto space-y-4">
+        <div class="max-w-5xl mx-auto space-y-4">
+          
+          <div id="finalGuidanceBanner" class="bg-amber-100 border border-amber-300 text-amber-900 rounded-xl p-3 text-sm font-bold">
+            ❓ 請看上方陳博士留給你們組的最後思考問題，並在下方畫出（或拍照上傳）修正後的實驗設計圖！
+          </div>
+
+          <!-- 第 1 輪 ➔ 最終輪 實驗設計演進對比圖 -->
+          <div id="evolutionContainer" class="bg-white rounded-xl border border-sky-200 p-4 shadow-sm">
+            <h3 class="text-sm font-bold text-sky-900 mb-2 flex items-center gap-1.5">
+              <span>🔄 我們組的實驗設計思維演進對比（第 1 次想法 ➔ 最終想法）：</span>
+            </h3>
+            <div id="evolutionGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <!-- 左欄 (5 cols)：畫設計圖 3 項自我檢查清單 & 1 分鐘匯報框架 -->
+            <div class="lg:col-span-5 bg-white rounded-xl border border-emerald-200 p-4 shadow-sm flex flex-col justify-between">
+              <div>
+                <p class="text-emerald-900 font-bold text-base mb-2.5">
+                  📝 第一步：畫設計圖自我檢查清單
+                </p>
+                <div class="space-y-2.5">
+                  <label class="flex items-start gap-2.5 cursor-pointer select-none text-sm text-slate-800 font-medium">
+                    <input type="checkbox" onchange="checkDrawingList()" class="draw-check mt-0.5 w-4 h-4 accent-emerald-600 rounded cursor-pointer" />
+                    <span>1. 已畫出<strong>A 組與 B 組</strong>兩個容器，且鐵釘大小相同</span>
+                  </label>
+                  <label class="flex items-start gap-2.5 cursor-pointer select-none text-sm text-slate-800 font-medium">
+                    <input type="checkbox" onchange="checkDrawingList()" class="draw-check mt-0.5 w-4 h-4 accent-emerald-600 rounded cursor-pointer" />
+                    <span>2. 已標示清楚容器內的物質（如<strong>自來水、乾燥劑或冷開水＋植物油</strong>）</span>
+                  </label>
+                  <label class="flex items-start gap-2.5 cursor-pointer select-none text-sm text-slate-800 font-medium">
+                    <input type="checkbox" onchange="checkDrawingList()" class="draw-check mt-0.5 w-4 h-4 accent-emerald-600 rounded cursor-pointer" />
+                    <span>3. 已清楚畫出容器口或液面<strong>如何阻隔外界空氣或水分</strong></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('scriptBox').classList.toggle('hidden')"
+                  class="w-full text-xs bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-bold py-2 px-3 rounded-lg transition">
+                  🗣️ 點擊展開「1 分鐘科學匯報講稿框架（四步曲）」
+                </button>
+                <div id="scriptBox" class="hidden mt-2 text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 text-slate-700 leading-relaxed">
+                  <p><strong>1. 探究目標：</strong>「大家好，我們是 <span class="text-sky-700 font-bold" id="scriptGroupInfo"></span>。我們想探究【水分 / 空氣】是不是鐵釘生鏽的必要條件。」</p>
+                  <p><strong>2. 對照設計：</strong>「我們準備了兩個容器，<strong>A 組</strong>放入鐵釘和【___】；<strong>B 組</strong>放入鐵釘和【___】並【___】，用來防止外界的【___】影響實驗。」</p>
+                  <p><strong>3. 公平測試：</strong>「為了確保公平測試，兩根鐵釘的大小、材質和擺放環境溫度都保持完全相同。」</p>
+                  <p><strong>4. 預計結果：</strong>「幾日後，預計<strong>A 組</strong>鐵釘會生鏽，<strong>B 組</strong>不會生鏽，證明鐵釘生鏽需要【水分 / 空氣】。」</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右欄 (7 cols)：雙軌作品提交（內建電子畫板 / 紙本拍照上傳） -->
+            <div class="lg:col-span-7 bg-white rounded-xl border border-emerald-200 p-4 shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <p class="text-emerald-900 font-bold text-base">
+                    🎨 第二步：提交小組實驗設計圖（雙軌任選）
+                  </p>
+                  <div class="flex rounded-lg bg-slate-100 p-1 text-xs font-bold">
+                    <button id="tabBtnCanvas" type="button" onclick="switchDrawingTab('canvas')"
+                      class="px-3 py-1.5 rounded-md bg-sky-600 text-white shadow-sm transition">
+                      ✏️ 直接在平板畫圖
+                    </button>
+                    <button id="tabBtnPhoto" type="button" onclick="switchDrawingTab('photo')"
+                      class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                      📸 拍照上傳紙本工作紙
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 分頁 1：網頁內建簡易電子畫板 + 科學器材圖章 -->
+                <div id="tabPaneCanvas" class="space-y-2.5">
+                  <div class="flex flex-wrap items-center justify-between gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
+                    <div class="flex items-center gap-1">
+                      <span class="font-bold text-slate-600">畫筆：</span>
+                      <button type="button" onclick="setPenColor('#1e293b', 3)" class="px-2 py-1 rounded bg-slate-800 text-white font-bold">黑筆</button>
+                      <button type="button" onclick="setPenColor('#0284c7', 4)" class="px-2 py-1 rounded bg-sky-600 text-white font-bold">藍水</button>
+                      <button type="button" onclick="setPenColor('#d97706', 4)" class="px-2 py-1 rounded bg-amber-600 text-white font-bold">黃油/橘筆</button>
+                      <button type="button" onclick="setPenColor('#ffffff', 16)" class="px-2 py-1 rounded bg-white border border-slate-300 text-slate-700 font-bold">橡皮擦</button>
+                    </div>
+                    <div class="flex items-center gap-1 flex-wrap">
+                      <span class="font-bold text-slate-600">蓋圖章：</span>
+                      <button type="button" onclick="stampShape('bottle')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">🫙瓶子</button>
+                      <button type="button" onclick="stampShape('lid')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">➖瓶蓋</button>
+                      <button type="button" onclick="stampShape('nail')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">🔩鐵釘</button>
+                      <button type="button" onclick="stampShape('water')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">💧水層</button>
+                      <button type="button" onclick="stampShape('oil')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">🟡油層</button>
+                      <button type="button" onclick="stampShape('dots')" class="px-2 py-1 rounded bg-white border border-slate-300 hover:bg-sky-50 font-bold">🟠顆粒</button>
+                      <button type="button" onclick="addTextToCanvas()" class="px-2 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 font-bold">🔤加文字</button>
+                      <button type="button" onclick="initSketchCanvas()" class="px-2 py-1 rounded bg-rose-50 border border-rose-200 text-rose-700 font-bold">🗑️清空</button>
+                    </div>
+                  </div>
+
+                  <div class="border-2 border-slate-300 rounded-xl overflow-hidden bg-white shadow-inner">
+                    <canvas id="sketchCanvas" width="560" height="270" class="w-full h-auto block"></canvas>
+                  </div>
+
+                  <button id="submitCanvasBtn" type="button" onclick="submitCanvasDrawing()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-2.5 px-4 rounded-xl shadow transition">
+                    ☁️ 提交平板電子設計圖給老師
+                  </button>
+                </div>
+
+                <!-- 分頁 2：拍照上傳紙本工作紙 -->
+                <div id="tabPanePhoto" class="hidden space-y-3">
+                  <p class="text-xs text-slate-500">如果你們是在紙本工作紙上畫設計圖，點擊下方按鈕拍照後可先調整大小再上傳：</p>
+                  <input id="drawingFileInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="handleDrawingSelected(event)" />
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="document.getElementById('drawingFileInput').click()"
+                      class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm py-2.5 px-4 rounded-xl shadow-sm transition">
+                      📷 拍照 / 選擇紙本設計圖照片
+                    </button>
+                    <button id="uploadDrawingBtn" type="button" onclick="submitDrawingToCloud()" disabled
+                      class="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-sm py-2.5 px-4 rounded-xl shadow-sm transition">
+                      ☁️ 確認上傳照片給老師
+                    </button>
+                  </div>
+
+                  <div id="drawingPreviewWrapper" class="hidden border-2 border-dashed border-emerald-300 rounded-xl p-2 bg-emerald-50/40 text-center">
+                    <img id="drawingPreviewImg" src="" alt="小組實驗設計圖預覽" class="max-h-44 mx-auto rounded-lg shadow-sm object-contain" />
+                  </div>
+                </div>
+              </div>
+
+              <p id="uploadStatusMsg" class="text-xs font-bold text-center mt-2 text-slate-500">
+                可使用上方電子畫板直接畫圖，或切換至拍照上傳
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 畫面 3：教師管理後台（課堂即時監控 + 課後 DeepSeek AI 迷思分析） ================= -->
+    <section id="teacherView" class="hidden flex-1 flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 p-4 md:p-6">
+      
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800 flex flex-wrap items-center gap-2">
+            <span>👩‍🏫 教師即時監控、作品投映與課後 AI 分析後台</span>
+            <span id="cacheStatusBadge" class="text-xs font-medium bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">尚未載入</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">各組即時進度（第一組至第十組）| 支援匿名投映與課後一鍵 DeepSeek 迷思歸納</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="autoRefreshBtn" onclick="toggleAutoRefresh()"
+            class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-2 rounded-lg font-bold transition">
+            ⏱️ 即時自動刷新：關
+          </button>
+
+          <button id="anonToggleBtn" onclick="toggleAnonymousMode()"
+            class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition">
+            🕵️ 匿名投映：關
+          </button>
+
+          <button onclick="openGasConfigModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium">
+            ⚙️ GAS 網址
+          </button>
+
+          <button onclick="fetchTeacherRecords(true)" class="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-2 rounded-lg font-bold shadow-sm">
+            🔄 立即刷新
+          </button>
+
+          <button onclick="closeTeacherView()" class="text-xs bg-slate-700 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg font-bold">
+            返回學生畫面
+          </button>
+        </div>
+      </div>
+
+      <!-- 指標卡區 (6 張) -->
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2.5 my-4">
+        <div onclick="switchTeacherTab('dashboard')" class="bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl p-3 cursor-pointer transition">
+          <p class="text-xs text-sky-700 font-bold">👥 已登入組別</p>
+          <p id="statTotal" class="text-2xl font-bold text-sky-900 mt-1">0 組</p>
+          <p id="statTotalSub" class="text-[11px] text-sky-600 mt-0.5">目前篩選範圍</p>
+        </div>
+
+        <div onclick="switchTeacherTab('drawings')" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl p-3 cursor-pointer transition">
+          <p class="text-xs text-indigo-700 font-bold">🎨 已上傳圖片</p>
+          <p id="statDrawings" class="text-2xl font-bold text-indigo-900 mt-1">0 組</p>
+          <p id="statDrawingsRate" class="text-[11px] text-indigo-600 mt-0.5 underline">點擊看作品表 ➔</p>
+        </div>
+
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+          <p class="text-xs text-emerald-700 font-bold">🟢 設計嚴謹過關</p>
+          <p id="statPassed" class="text-2xl font-bold text-emerald-900 mt-1">0 組</p>
+          <p id="statPassedRate" class="text-[11px] text-emerald-600 mt-0.5">嚴謹過關率 0%</p>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <p class="text-xs text-amber-800 font-bold">💧 未提乾燥劑</p>
+          <p id="statNoDesiccant" class="text-2xl font-bold text-amber-900 mt-1">0 組</p>
+          <p id="statNoDesiccantRate" class="text-[11px] text-amber-700 mt-0.5">佔參與組別 0%</p>
+        </div>
+
+        <div class="bg-orange-50 border border-orange-200 rounded-xl p-3">
+          <p class="text-xs text-orange-800 font-bold">🫙 未提密封/油封</p>
+          <p id="statNoLid" class="text-2xl font-bold text-orange-900 mt-1">0 組</p>
+          <p id="statNoLidRate" class="text-[11px] text-orange-700 mt-0.5">佔參與組別 0%</p>
+        </div>
+
+        <div onclick="switchTeacherTab('inappropriate')" class="bg-rose-50 hover:bg-rose-100 border-2 border-rose-300 rounded-xl p-3 cursor-pointer transition">
+          <p class="text-xs text-rose-800 font-bold">🚨 不恰當語言警報</p>
+          <p id="statInappropriate" class="text-2xl font-bold text-rose-700 mt-1">0 組</p>
+          <p id="statInappropriateSub" class="text-[11px] text-rose-600 mt-0.5 font-bold underline">點擊看 AI 分析 ➔</p>
+        </div>
+      </div>
+
+      <!-- 班別篩選器 + 五大分頁切換 -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-sm font-bold text-slate-600 mr-1">班別：</span>
+          <button onclick="setClassFilter('5A')" id="filter-5A" class="filter-btn bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">5A</button>
+          <button onclick="setClassFilter('5B')" id="filter-5B" class="filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">5B</button>
+          <button onclick="setClassFilter('5C')" id="filter-5C" class="filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">5C</button>
+          <button onclick="setClassFilter('5D')" id="filter-5D" class="filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">5D</button>
+          <button onclick="setClassFilter('5E')" id="filter-5E" class="filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">5E</button>
+          <button onclick="setClassFilter('ALL')" id="filter-ALL" class="filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">全級</button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button id="tTab-dashboard" onclick="switchTeacherTab('dashboard')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm transition">
+            📡 1. 課堂即時監控
+          </button>
+          <button id="tTab-aiAnalysis" onclick="switchTeacherTab('aiAnalysis')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold text-purple-800 hover:bg-white transition">
+            🤖 2. 課後 DeepSeek 迷思分析
+          </button>
+          <button id="tTab-drawings" onclick="switchTeacherTab('drawings')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-white transition">
+            🎨 3. 設計圖作品表
+          </button>
+          <button id="tTab-all" onclick="switchTeacherTab('all')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-white transition">
+            📋 4. 對話明細表
+          </button>
+          <button id="tTab-inappropriate" onclick="switchTeacherTab('inappropriate')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-white transition">
+            🚨 5. 不當語言表
+          </button>
+        </div>
+
+        <a href="https://docs.google.com/spreadsheets/d/1IdkEMnNX7-Gnz7z7GlqR_XIbrQcywFNtM8MRGI_Wsr8/edit?usp=sharing"
+           target="_blank" class="text-xs text-sky-700 hover:underline font-bold flex items-center gap-1">
+          📊 Google Sheets ↗
+        </a>
+      </div>
+
+      <!-- 分頁 1：課堂即時監控 Dashboard -->
+      <div id="teacherPaneDashboard" class="flex-1 overflow-y-auto space-y-4">
+        <div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="font-bold text-sky-900">
+            📡 課堂即時監控（<span id="dashboardClassTitle">5A 班</span> 第一組至第十組進度）
+          </div>
+          <div class="flex flex-wrap items-center gap-3 font-bold">
+            <span class="flex items-center gap-1 text-slate-500"><span class="w-3 h-3 rounded-full bg-slate-300 inline-block"></span> 未提交（未開始）</span>
+            <span class="flex items-center gap-1 text-amber-700"><span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span> 討論中（未上傳圖片）</span>
+            <span class="flex items-center gap-1 text-emerald-700"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> 已上傳圖片</span>
+          </div>
+        </div>
+        <div id="liveDashboardGrid"></div>
+      </div>
+
+      <!-- 分頁 2：課後一鍵 DeepSeek 全班迷思分析 -->
+      <div id="teacherPaneAiAnalysis" class="hidden flex-1 overflow-y-auto space-y-4">
+        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-2xl p-4 md:p-5 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-base md:text-lg font-bold text-purple-950 flex items-center gap-2">
+              <span>🤖 課後一鍵 DeepSeek 全班對話迷思分析</span>
+              <span id="aiTargetClassBadge" class="text-xs bg-purple-600 text-white px-2.5 py-0.5 rounded-full">5A 班</span>
+            </h3>
+            <p class="text-xs text-purple-800 mt-1 leading-relaxed">
+              自動彙整該班所有組別的對話與相片識別紀錄，統計忘記密封蓋子、未放乾燥劑比例、評估變項控制清晰度，並生成<strong>「下一堂課前 5 分鐘回饋教案」</strong>。
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="runAiAnalysisBtn" onclick="triggerDeepSeekClassAnalysis()"
+              class="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-400 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-md transition flex items-center gap-2">
+              <span>✨ 一鍵分析目前班別全班對話</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="aiAnalysisResultContainer" class="space-y-4">
+          <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center text-slate-500">
+            <div class="text-4xl mb-2">📊</div>
+            <p class="font-bold text-slate-700">尚未產生分析報告</p>
+            <p class="text-xs mt-1">請先在上方選擇要分析的班別（例如 5A），然後點擊「✨ 一鍵分析目前班別全班對話」。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分頁 3：設計圖作品專屬表格 -->
+      <div id="teacherPaneDrawings" class="hidden flex-1 overflow-x-auto">
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs font-bold text-indigo-900">
+            🎨 此表格集中列出所有小組上傳的「實驗設計圖作品」（點擊任何圖片即可在課室大螢幕全螢幕放大投映）。
+          </p>
+          <label class="flex items-center gap-1.5 text-xs font-bold text-indigo-800 cursor-pointer">
+            <input id="onlyWithDrawingCheck" type="checkbox" checked onchange="renderTeacherViews()" class="accent-indigo-600 w-4 h-4 rounded" />
+            <span>只顯示已上傳圖片的組別</span>
+          </label>
+        </div>
+
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-indigo-100/80 text-indigo-950 border-b border-indigo-200">
+              <th class="py-2.5 px-3 w-20">班別</th>
+              <th class="py-2.5 px-3 w-28">組別 / 匿名</th>
+              <th class="py-2.5 px-3 w-36">最後提交時間</th>
+              <th class="py-2.5 px-3 text-center w-64">🖼️ 小組上傳的實驗設計圖（點擊放大）</th>
+              <th class="py-2.5 px-3">小組最終實驗想法摘要與審核狀態</th>
+            </tr>
+          </thead>
+          <tbody id="teacherDrawingsTableBody" class="divide-y divide-slate-200"></tbody>
+        </table>
+      </div>
+
+      <!-- 分頁 4：對話明細表 -->
+      <div id="teacherPaneAll" class="hidden flex-1 overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+              <th class="py-2.5 px-3">班別</th>
+              <th class="py-2.5 px-3">組別 / 匿名</th>
+              <th class="py-2.5 px-3">狀態、迷思與語言警報</th>
+              <th class="py-2.5 px-3 text-center">🎨 實驗設計圖</th>
+              <th class="py-2.5 px-3">小組實驗對話與防劇透思考提問</th>
+            </tr>
+          </thead>
+          <tbody id="teacherTableBody" class="divide-y divide-slate-200">
+            <tr>
+              <td colspan="5" class="py-8 text-center text-slate-400">正在載入雲端數據...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 分頁 5：不恰當語言表 -->
+      <div id="teacherPaneInappropriate" class="hidden flex-1 overflow-x-auto">
+        <div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 mb-3">
+          <p class="text-xs font-bold text-rose-900">
+            🚨 此表格專門記錄在對話中使用「不恰當語言」的小組原話，並由教師 AI 自動分析其行為動機與訓輔跟進建議。
+          </p>
+        </div>
+
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-rose-100/80 text-rose-950 border-b border-rose-200">
+              <th class="py-2.5 px-3 w-20">班別</th>
+              <th class="py-2.5 px-3 w-28">組別</th>
+              <th class="py-2.5 px-3 w-36">記錄時間</th>
+              <th class="py-2.5 px-3">🚨 不恰當原話 & 🤖 教師專屬 AI 分析報告</th>
+            </tr>
+          </thead>
+          <tbody id="teacherInappropriateTableBody" class="divide-y divide-rose-100"></tbody>
+        </table>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= 小組作品大螢幕放大投映 Modal (Lightbox) ================= -->
+  <div id="drawingLightboxModal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center p-3 md:p-6 z-50">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="bg-sky-800 text-white px-5 py-3 flex items-center justify-between">
+        <div>
+          <h3 id="lightboxTitle" class="text-lg font-bold">🎨 小組實驗設計圖作品投映</h3>
+          <p class="text-xs text-sky-200">課堂討論焦點：這一組在設計圖中，如何解決陳博士留下的思考問題？有沒有達成公平測試？</p>
+        </div>
+        <button onclick="closeDrawingLightbox()" class="bg-sky-900 hover:bg-rose-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-sm transition">
+          ✕ 關閉投映
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <div id="lightboxImgContainer" class="lg:col-span-7 bg-slate-100 rounded-xl p-3 flex items-center justify-center border border-slate-200 min-h-[260px]">
+          <img id="lightboxImg" src="" alt="小組實驗設計圖放大投映" class="max-h-[72vh] w-auto object-contain rounded-lg shadow bg-white" />
+          <p id="lightboxNoImgMsg" class="hidden text-sm font-bold text-slate-400">尚未上傳最終實驗設計圖圖片</p>
+        </div>
+        <div class="lg:col-span-5 space-y-3">
+          <h4 class="font-bold text-slate-800 text-sm border-b pb-1.5">💬 該組的 3 輪思考軌跡與最後問題：</h4>
+          <div id="lightboxDialog" class="space-y-2 max-h-[66vh] overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 學生相片調整大小與旋轉 Modal ================= -->
+  <div id="photoEditorModal" class="hidden fixed inset-0 bg-slate-900/75 flex items-center justify-center p-3 z-50">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="bg-sky-700 text-white px-4 py-3 flex items-center justify-between">
+        <h3 class="text-base font-bold">📐 調整相片大小與方向</h3>
+        <button type="button" onclick="closePhotoEditor()" class="text-xs bg-sky-900 hover:bg-rose-600 px-2.5 py-1 rounded-lg font-bold transition">
+          ✕ 取消
+        </button>
+      </div>
+
+      <div class="p-4 space-y-3 overflow-y-auto">
+        <!-- 即時預覽區 -->
+        <div class="bg-slate-100 border-2 border-slate-200 rounded-xl p-2 flex items-center justify-center min-h-[220px] max-h-[42vh] overflow-hidden">
+          <img id="editorPreviewImg" src="" alt="調整預覽" class="max-h-[38vh] w-auto object-contain rounded-lg shadow bg-white" />
+        </div>
+
+        <!-- 尺寸與容量即時顯示 -->
+        <div class="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 text-xs font-bold text-sky-900">
+          <span id="editorDimLabel">尺寸：-- × -- px</span>
+          <span id="editorSizeLabel">大小：-- KB</span>
+        </div>
+
+        <!-- 調整大小滑桿 -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-bold text-slate-700">
+            <label for="photoScaleRange">🔍 調整圖片大小（寬度／清晰度）：</label>
+            <span id="photoScaleVal" class="text-sky-700">85%</span>
+          </div>
+          <input id="photoScaleRange" type="range" min="25" max="100" step="5" value="85"
+            oninput="renderPhotoEditorPreview()"
+            class="w-full accent-sky-600 h-2 bg-slate-200 rounded-lg cursor-pointer" />
+          <div class="flex justify-between text-[11px] text-slate-400">
+            <span>較小（上傳更快）</span>
+            <span>較大（文字更清晰）</span>
+          </div>
+        </div>
+
+        <!-- 快捷按鈕：旋轉與預設大小 -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button type="button" onclick="rotateEditorPhoto()"
+            class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold px-3 py-2 rounded-xl transition">
+            🔄 旋轉 90°
+          </button>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="setEditorScale(40)" class="text-xs bg-slate-100 hover:bg-sky-100 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold">小圖</button>
+            <button type="button" onclick="setEditorScale(70)" class="text-xs bg-slate-100 hover:bg-sky-100 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold">中圖</button>
+            <button type="button" onclick="setEditorScale(100)" class="text-xs bg-slate-100 hover:bg-sky-100 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold">原尺寸</button>
+          </div>
+        </div>
+
+        <p id="editorSizeWarning" class="hidden text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          ⚠️ 紙本作品上傳至試算表上限為 45 KB，請將滑桿往左拉小一點，系統亦會自動協助壓縮。
+        </p>
+
+        <!-- 確認套用按鈕 -->
+        <button type="button" onclick="confirmPhotoEditor()"
+          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3 rounded-xl shadow transition">
+          ✅ 確認圖片大小，準備上傳
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 教師密碼驗證 Modal ================= -->
+  <div id="pwdModal" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1">👩‍🏫 教師身分驗證</h3>
+      <p class="text-xs text-slate-500 mb-4">請輸入教師密碼以開啟即時監控 Dashboard 與課後 AI 分析</p>
+      <input id="pwdInput" type="password" placeholder="請輸入密碼"
+        class="w-full rounded-xl border-2 border-slate-200 px-3.5 py-2.5 text-base mb-3 focus:border-sky-600 focus:outline-none"
+        onkeydown="if(event.key==='Enter') verifyTeacherPwd()" />
+      <p id="pwdError" class="hidden text-xs text-rose-600 font-bold mb-3">❌ 密碼錯誤，請重新輸入！</p>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeTeacherModal()" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100">取消</button>
+        <button onclick="verifyTeacherPwd()" class="px-4 py-2 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white">確認進入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= GAS 網址檢視/設定 Modal ================= -->
+  <div id="gasModal" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1">⚙️ Google Apps Script 永久部署網址</h3>
+      <p class="text-xs text-slate-500 mb-3">系統已內建新的 GAS 部署網址（若日後有變動可在此貼上新網址）：</p>
+      <input id="gasUrlInput" type="url"
+        class="w-full rounded-xl border-2 border-slate-200 px-3.5 py-2.5 text-sm mb-4 focus:border-sky-600 focus:outline-none" />
+      <div class="flex justify-end gap-2">
+        <button onclick="document.getElementById('gasModal').classList.add('hidden')" class="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100">關閉</button>
+        <button onclick="saveGasUrl()" class="px-4 py-2 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white">儲存網址</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /******************************************************************
+     * 1. 基本配置、組別名稱對照與永久內建 GAS 連結
+     ******************************************************************/
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyHHjwT2DYkHULMZ_U_YszCy3Ce3SGz8TbPq2WAZSikwM6VoRizGvdb8PoiC2IWpa7Vig/exec";
+    const GAS_URL_STORAGE_KEY = "rust_advisor_gas_url_v9";
+    const TEACHER_PWD = "wisdom2668";
+    const MAX_TURNS = 3;
+    const TOTAL_GROUPS = 10;
+    const CLASSES_LIST = ["5A", "5B", "5C", "5D", "5E"];
+    const CACHE_TTL_MS = 10000;
+
+    const GROUP_NAMES = ["", "第一組", "第二組", "第三組", "第四組", "第五組", "第六組", "第七組", "第八組", "第九組", "第十組"];
+    function formatGroupName(num) {
+      const n = Number(num);
+      return GROUP_NAMES[n] || `第 ${n} 組`;
+    }
+
+    let currentClass = "";
+    let currentGroupId = "";
+    let usedTurns = 0;
+    let isSessionDone = false;
+    let chatHistory = [];
+    let currentDrawingBase64 = "";
+    let pendingChatImageBase64 = "";
+
+    let teacherRecords = [];
+    let lastFetchTime = 0;
+    let currentClassFilter = "5A";
+    let currentTeacherTab = "dashboard";
+    let isAnonymousMode = false;
+    let autoRefreshTimer = null;
+    let lastAiAnalysisText = "";
+
+    let activeTtsAudio = null;
+    let activeTtsBtn = null;
+    const ttsAudioCache = {};
+
+    const groupSelect = document.getElementById("groupSelect");
+    for (let i = 1; i <= TOTAL_GROUPS; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = GROUP_NAMES[i];
+      groupSelect.appendChild(opt);
+    }
+
+    function getGasUrl() {
+      return localStorage.getItem(GAS_URL_STORAGE_KEY) || DEFAULT_GAS_URL;
+    }
+
+    /******************************************************************
+     * 2. 通用「相片調整大小與旋轉」編輯器（支援對話拍圖 & 紙本交圖）
+     ******************************************************************/
+    let editorMode = ""; // "chat" 或 "drawing"
+    let editorOriginalImg = null;
+    let editorRotation = 0;
+    let editorProcessedBase64 = "";
+
+    function handleChatPhotoSelected(event) {
+      openPhotoEditorFromFile(event.target.files[0], "chat");
+    }
+
+    function handleDrawingSelected(event) {
+      openPhotoEditorFromFile(event.target.files[0], "drawing");
+    }
+
+    function openPhotoEditorFromFile(file, mode) {
+      if (!file) return;
+      editorMode = mode;
+      editorRotation = 0;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          editorOriginalImg = img;
+          const defaultScale = (mode === "chat") ? 85 : 65;
+          document.getElementById("photoScaleRange").value = defaultScale;
+          document.getElementById("photoEditorModal").classList.remove("hidden");
+          renderPhotoEditorPreview();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setEditorScale(val) {
+      document.getElementById("photoScaleRange").value = val;
+      renderPhotoEditorPreview();
+    }
+
+    function rotateEditorPhoto() {
+      editorRotation = (editorRotation + 90) % 360;
+      renderPhotoEditorPreview();
+    }
+
+    function renderPhotoEditorPreview() {
+      if (!editorOriginalImg) return;
+      const scalePct = Number(document.getElementById("photoScaleRange").value);
+      document.getElementById("photoScaleVal").textContent = `${scalePct}%`;
+
+      const maxBaseDim = (editorMode === "chat") ? 1200 : 800;
+      let baseW = editorOriginalImg.width;
+      let baseH = editorOriginalImg.height;
+      if (baseW > baseH && baseW > maxBaseDim) {
+        baseH = Math.round((baseH * maxBaseDim) / baseW);
+        baseW = maxBaseDim;
+      } else if (baseH >= baseW && baseH > maxBaseDim) {
+        baseW = Math.round((baseW * maxBaseDim) / baseH);
+        baseH = maxBaseDim;
+      }
+
+      const targetW = Math.max(120, Math.round(baseW * (scalePct / 100)));
+      const targetH = Math.max(120, Math.round(baseH * (scalePct / 100)));
+
+      const isRotated90 = (editorRotation === 90 || editorRotation === 270);
+      const canvas = document.createElement("canvas");
+      canvas.width = isRotated90 ? targetH : targetW;
+      canvas.height = isRotated90 ? targetW : targetH;
+
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((editorRotation * Math.PI) / 180);
+      ctx.drawImage(editorOriginalImg, -targetW / 2, -targetH / 2, targetW, targetH);
+
+      let quality = (editorMode === "chat") ? 0.8 : 0.65;
+      let dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+      const warnEl = document.getElementById("editorSizeWarning");
+      if (editorMode === "drawing") {
+        while (dataUrl.length > 44000 && quality > 0.25) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+        warnEl.classList.toggle("hidden", dataUrl.length <= 44000);
+      } else {
+        warnEl.classList.add("hidden");
+      }
+
+      editorProcessedBase64 = dataUrl;
+      const kbSize = Math.round((dataUrl.length * 3) / 4 / 1024);
+
+      document.getElementById("editorPreviewImg").src = dataUrl;
+      document.getElementById("editorDimLabel").textContent = `尺寸：${canvas.width} × ${canvas.height} px`;
+      document.getElementById("editorSizeLabel").textContent = `大小：約 ${kbSize} KB`;
+    }
+
+    function confirmPhotoEditor() {
+      if (!editorProcessedBase64) return;
+
+      if (editorMode === "chat") {
+        pendingChatImageBase64 = editorProcessedBase64;
+        document.getElementById("chatPhotoPreviewImg").src = pendingChatImageBase64;
+        document.getElementById("chatPhotoPreviewBar").classList.remove("hidden");
+      } else if (editorMode === "drawing") {
+        currentDrawingBase64 = editorProcessedBase64;
+        document.getElementById("drawingPreviewImg").src = currentDrawingBase64;
+        document.getElementById("drawingPreviewWrapper").classList.remove("hidden");
+        document.getElementById("uploadDrawingBtn").disabled = false;
+
+        const statusMsg = document.getElementById("uploadStatusMsg");
+        statusMsg.textContent = "📸 照片大小已調整好！請點擊「☁️ 確認上傳照片給老師」完成提交。";
+        statusMsg.className = "text-xs font-bold text-center mt-2 text-amber-700";
+      }
+
+      closePhotoEditor();
+    }
+
+    function closePhotoEditor() {
+      document.getElementById("photoEditorModal").classList.add("hidden");
+      editorOriginalImg = null;
+      editorProcessedBase64 = "";
+      document.getElementById("chatPhotoInput").value = "";
+      document.getElementById("drawingFileInput").value = "";
+    }
+
+    function clearChatPhoto() {
+      pendingChatImageBase64 = "";
+      document.getElementById("chatPhotoInput").value = "";
+      document.getElementById("chatPhotoPreviewImg").src = "";
+      document.getElementById("chatPhotoPreviewBar").classList.add("hidden");
+    }
+
+    /******************************************************************
+     * 3. 本地端不恰當語言偵測 & 微軟雲龍廣東話男聲朗讀引擎
+     ******************************************************************/
+    const LOCAL_PROFANITY_REGEX = /(屌|鳩|柒|撚|閪|仆街|老母|死蠢|白痴|智障|垃圾AI|笨蛋|去死|fuck|shit|bitch|asshole|wtf|diu|on9|pk)/i;
+    function checkLocalProfanity(text) {
+      const match = text.match(LOCAL_PROFANITY_REGEX);
+      return match ? match[0] : null;
+    }
+
+    function stopAllSpeech() {
+      if (activeTtsAudio) { activeTtsAudio.pause(); activeTtsAudio.currentTime = 0; activeTtsAudio = null; }
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      if (activeTtsBtn) {
+        activeTtsBtn.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)";
+        activeTtsBtn.disabled = false;
+        activeTtsBtn = null;
+      }
+    }
+
+    async function speakCantonese(text, btnEl) {
+      if (activeTtsBtn && activeTtsBtn === btnEl && ((activeTtsAudio && !activeTtsAudio.paused) || ("speechSynthesis" in window && window.speechSynthesis.speaking))) {
+        stopAllSpeech();
+        return;
+      }
+      stopAllSpeech();
+
+      if ("speechSynthesis" in window) {
+        const voices = window.speechSynthesis.getVoices();
+        const nativeWanLung = voices.find(v => /WanLung/i.test(v.name));
+        if (nativeWanLung) {
+          activeTtsBtn = btnEl;
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.voice = nativeWanLung;
+          utter.lang = "zh-HK";
+          utter.rate = 0.96;
+          if (btnEl) btnEl.innerHTML = "⏹️ 停止雲龍朗讀";
+          utter.onend = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsBtn = null; };
+          utter.onerror = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsBtn = null; };
+          window.speechSynthesis.speak(utter);
+          return;
+        }
+      }
+
+      if (btnEl) {
+        activeTtsBtn = btnEl;
+        btnEl.innerHTML = "⏳ 雲端合成雲龍男聲...";
+        btnEl.disabled = true;
+      }
+
+      try {
+        if (ttsAudioCache[text]) {
+          playBase64Audio(ttsAudioCache[text].audioBase64, ttsAudioCache[text].isMaleNeural, btnEl);
+          return;
+        }
+        const res = await fetch(getGasUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "tts", text: text })
+        });
+        const data = await res.json();
+        if (data.status === "success" && data.audioBase64) {
+          ttsAudioCache[text] = { audioBase64: data.audioBase64, isMaleNeural: data.isMaleNeural !== false };
+          playBase64Audio(data.audioBase64, data.isMaleNeural !== false, btnEl);
+          return;
+        }
+        throw new Error(data.message || "雲端合成切換後備");
+      } catch (err) {
+        fallbackBrowserMaleCantonese(text, btnEl);
+      }
+    }
+
+    function playBase64Audio(dataUrl, isMaleNeural, btnEl) {
+      const audio = new Audio(dataUrl);
+      if (!isMaleNeural) {
+        audio.preservesPitch = false;
+        audio.mozPreservesPitch = false;
+        audio.webkitPreservesPitch = false;
+        audio.playbackRate = 0.88;
+      }
+      activeTtsAudio = audio;
+      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = "⏹️ 停止雲龍朗讀"; }
+      audio.onended = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsAudio = null; activeTtsBtn = null; };
+      audio.onerror = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsAudio = null; activeTtsBtn = null; };
+      audio.play().catch(() => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; });
+    }
+
+    function fallbackBrowserMaleCantonese(text, btnEl) {
+      if (!("speechSynthesis" in window)) {
+        if (btnEl) { btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; btnEl.disabled = false; }
+        return;
+      }
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "zh-HK";
+      utter.pitch = 0.82;
+      utter.rate = 0.94;
+      const voices = window.speechSynthesis.getVoices();
+      const hkVoice = voices.find(v => /WanLung/i.test(v.name))
+        || voices.find(v => (v.lang === "zh-HK" || v.lang === "yue-HK") && /(Male|Danny|男)/i.test(v.name))
+        || voices.find(v => v.lang === "zh-HK" || v.lang === "yue-HK");
+      if (hkVoice) utter.voice = hkVoice;
+      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = "⏹️ 停止雲龍朗讀"; }
+      utter.onend = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsBtn = null; };
+      utter.onerror = () => { if (btnEl) btnEl.innerHTML = "🔊 雲龍男聲朗讀 (廣東話)"; activeTtsBtn = null; };
+      window.speechSynthesis.speak(utter);
+    }
+
+    function insertVocab(word) {
+      const inputEl = document.getElementById("userInput");
+      if (inputEl.disabled) return;
+      const start = inputEl.selectionStart || inputEl.value.length;
+      const end = inputEl.selectionEnd || inputEl.value.length;
+      inputEl.value = inputEl.value.substring(0, start) + word + inputEl.value.substring(end);
+      inputEl.focus();
+      inputEl.setSelectionRange(start + word.length, start + word.length);
+    }
+
+    function insertSentenceTemplate(tpl) {
+      const inputEl = document.getElementById("userInput");
+      if (inputEl.disabled) return;
+      inputEl.value = tpl;
+      inputEl.focus();
+    }
+
+    /******************************************************************
+     * 4. 純視覺無字化 SVG 實驗示意圖渲染引擎（預設 A 組 / B 組）
+     ******************************************************************/
+    function renderVisualSpecSvg(visualSpec, customTitle = "") {
+      if (!visualSpec || !Array.isArray(visualSpec.setups) || visualSpec.setups.length === 0) return "";
+      const setups = visualSpec.setups.slice(0, 3);
+      const cardsHtml = setups.map((s, idx) => {
+        const defaultName = idx === 0 ? "A 組" : (idx === 1 ? "B 組" : `裝置 ${idx + 1}`);
+        const label = escapeHtml(s.label || defaultName);
+        const cType = s.containerType || "bottle";
+        const hasLid = Boolean(s.hasLid);
+        const liquid = s.liquid || "none";
+        const hasOil = Boolean(s.hasOilLayer);
+        const hasDesiccant = Boolean(s.hasDesiccant);
+        const hasNail = s.hasNail !== false;
+
+        let svgInner = "";
+        if (cType === "table" || cType === "none") {
+          svgInner = `
+            <rect x="20" y="132" width="160" height="12" rx="3" fill="#b45309" />
+            <rect x="35" y="144" width="12" height="24" fill="#92400e" />
+            <rect x="153" y="144" width="12" height="24" fill="#92400e" />
+            ${hasNail ? `
+              <rect x="65" y="123" width="70" height="6" rx="2" fill="#64748b" stroke="#334155" stroke-width="1" />
+              <rect x="62" y="120" width="6" height="12" rx="1" fill="#334155" />
+            ` : ""}
+            <g fill="#38bdf8" opacity="0.65">
+              <circle cx="55" cy="55" r="3.5" /><circle cx="85" cy="42" r="3" /><circle cx="115" cy="50" r="3.5" />
+              <circle cx="145" cy="60" r="3" /><circle cx="70" cy="88" r="3" /><circle cx="102" cy="82" r="3.5" />
+              <circle cx="130" cy="92" r="3" /><circle cx="88" cy="110" r="2.8" /><circle cx="116" cy="108" r="2.8" />
+            </g>`;
+        } else {
+          let liquidFill = "none";
+          if (liquid === "tap_water") liquidFill = "rgba(56, 189, 248, 0.45)";
+          else if (liquid === "boiled_water") liquidFill = "rgba(125, 211, 252, 0.38)";
+          else if (liquid === "salt_water") liquidFill = "rgba(45, 212, 191, 0.45)";
+          else if (liquid === "oil_only") liquidFill = "rgba(250, 204, 21, 0.75)";
+
+          const effectiveLiquid = (liquid === "none" && hasOil) ? "oil_only" : liquid;
+          if (effectiveLiquid === "oil_only") liquidFill = "rgba(250, 204, 21, 0.75)";
+
+          svgInner = `
+            <path d="M50,45 L50,152 Q50,162 60,162 L140,162 Q150,162 150,152 L150,45" fill="#ffffff" stroke="#475569" stroke-width="3.5" />
+            <g fill="#38bdf8" opacity="0.55">
+              <circle cx="40" cy="22" r="3" /><circle cx="75" cy="16" r="3.2" /><circle cx="105" cy="18" r="3" />
+              <circle cx="132" cy="15" r="3.2" /><circle cx="162" cy="24" r="3" />
+            </g>
+            ${hasLid ? `
+              <rect x="42" y="34" width="116" height="13" rx="4" fill="#0f766e" stroke="#115e59" stroke-width="2" />
+            ` : `
+              ${(!hasOil && effectiveLiquid !== "oil_only") ? `
+                <g fill="#38bdf8" opacity="0.65">
+                  <circle cx="82" cy="36" r="3" /><circle cx="115" cy="34" r="3" />
+                  <circle cx="72" cy="58" r="3" /><circle cx="102" cy="54" r="3.2" /><circle cx="126" cy="62" r="3" />
+                  <circle cx="88" cy="74" r="2.8" /><circle cx="114" cy="76" r="2.8" />
+                </g>` : ""}
+            `}
+            ${effectiveLiquid !== "none" ? `
+              <rect x="52" y="92" width="96" height="68" rx="4" fill="${liquidFill}" />
+              ${effectiveLiquid === "tap_water" ? `
+                <g fill="#ffffff" stroke="#0284c7" stroke-width="1" opacity="0.85">
+                  <circle cx="68" cy="112" r="2.5" /><circle cx="128" cy="120" r="2.5" /><circle cx="85" cy="142" r="2.2" /><circle cx="118" cy="146" r="2" />
+                </g>` : ""}
+            ` : ""}
+            ${(hasOil && effectiveLiquid !== "oil_only") ? `<rect x="52" y="78" width="96" height="14" fill="#facc15" opacity="0.92" />` : ""}
+            ${hasDesiccant ? `
+              <g fill="#f59e0b" stroke="#b45309" stroke-width="1">
+                <circle cx="64" cy="152" r="5" /><circle cx="77" cy="154" r="5" /><circle cx="91" cy="152" r="5" />
+                <circle cx="105" cy="154" r="5" /><circle cx="119" cy="152" r="5" /><circle cx="134" cy="153" r="5" />
+              </g>` : ""}
+            ${hasNail ? `
+              <g transform="rotate(-14 100 138)">
+                <rect x="68" y="135" width="64" height="6" rx="2" fill="#64748b" stroke="#334155" stroke-width="1" />
+                <rect x="64" y="132" width="6" height="12" rx="1" fill="#334155" />
+              </g>` : ""}
+          `;
+        }
+
+        return `
+          <div class="bg-white border-2 border-slate-200 rounded-xl p-2.5 flex flex-col items-center shadow-sm">
+            <div class="text-xs font-bold text-slate-800 bg-slate-100 px-3 py-0.5 rounded-full mb-1">${label}</div>
+            <svg viewBox="0 0 200 172" class="w-40 h-32">${svgInner}</svg>
+          </div>`;
+      }).join("");
+
+      const missingComparisonHtml = setups.length === 1 ? `
+        <div class="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-2.5 flex flex-col items-center justify-center text-center min-h-[140px]">
+          <span class="text-2xl mb-1">❓</span>
+          <p class="text-xs font-bold text-slate-600">缺少對比組別</p>
+        </div>` : "";
+
+      const headerTitle = customTitle || "🖼️ 陳博士根據你們最新描述／相片畫出的【純視覺實驗示意圖】：";
+      return `
+        <div class="bg-sky-50/70 border border-sky-200 rounded-xl p-3">
+          <div class="text-xs font-bold text-sky-900 mb-2">${headerTitle}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${cardsHtml}${missingComparisonHtml}</div>
+        </div>`;
+    }
+
+    function renderEvolutionComparison() {
+      const validTurns = chatHistory.filter(h => h.aiParsed && !h.aiParsed.isOffTopic && !h.aiParsed.isInappropriate && h.aiParsed.visualSpec);
+      const grid = document.getElementById("evolutionGrid");
+      if (validTurns.length === 0) {
+        document.getElementById("evolutionContainer").classList.add("hidden");
+        return;
+      }
+      document.getElementById("evolutionContainer").classList.remove("hidden");
+      const firstHtml = renderVisualSpecSvg(validTurns[0].aiParsed.visualSpec, `🌱 第 1 次想法的示意圖`);
+      const lastHtml = renderVisualSpecSvg(validTurns[validTurns.length - 1].aiParsed.visualSpec, `🚀 最終一次想法的示意圖`);
+      grid.innerHTML = `<div>${firstHtml}</div><div>${lastHtml}</div>`;
+    }
+
+    /******************************************************************
+     * 5. 電子畫板（A 組／B 組）+ 紙本拍照雙軌提交系統
+     ******************************************************************/
+    let sketchCtx = null;
+    let isDrawing = false;
+    let penColor = "#1e293b";
+    let penWidth = 3;
+    let stampSideToggle = 0;
+
+    function initSketchCanvas() {
+      const canvas = document.getElementById("sketchCanvas");
+      if (!canvas) return;
+      sketchCtx = canvas.getContext("2d");
+      sketchCtx.fillStyle = "#ffffff";
+      sketchCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      sketchCtx.strokeStyle = "#cbd5e1";
+      sketchCtx.lineWidth = 2;
+      sketchCtx.setLineDash([6, 4]);
+      sketchCtx.beginPath();
+      sketchCtx.moveTo(canvas.width / 2, 10);
+      sketchCtx.lineTo(canvas.width / 2, canvas.height - 10);
+      sketchCtx.stroke();
+      sketchCtx.setLineDash([]);
+
+      sketchCtx.fillStyle = "#0369a1";
+      sketchCtx.font = "bold 15px 'Noto Sans TC', sans-serif";
+      sketchCtx.fillText("A 組", 20, 26);
+      sketchCtx.fillText("B 組", canvas.width / 2 + 20, 26);
+    }
+
+    function setupCanvasEvents() {
+      const canvas = document.getElementById("sketchCanvas");
+      if (!canvas) return;
+      initSketchCanvas();
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: (clientX - rect.left) * (canvas.width / rect.width),
+          y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+      };
+
+      const startDraw = (e) => { e.preventDefault(); isDrawing = true; const p = getPos(e); sketchCtx.beginPath(); sketchCtx.moveTo(p.x, p.y); };
+      const moveDraw = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const p = getPos(e);
+        sketchCtx.strokeStyle = penColor;
+        sketchCtx.lineWidth = penWidth;
+        sketchCtx.lineCap = "round";
+        sketchCtx.lineJoin = "round";
+        sketchCtx.lineTo(p.x, p.y);
+        sketchCtx.stroke();
+      };
+      const endDraw = () => { isDrawing = false; };
+
+      canvas.addEventListener("mousedown", startDraw);
+      canvas.addEventListener("mousemove", moveDraw);
+      window.addEventListener("mouseup", endDraw);
+      canvas.addEventListener("touchstart", startDraw, { passive: false });
+      canvas.addEventListener("touchmove", moveDraw, { passive: false });
+      window.addEventListener("touchend", endDraw);
+    }
+
+    function setPenColor(color, width) { penColor = color; penWidth = width; }
+
+    function stampShape(type) {
+      if (!sketchCtx) return;
+      const centerX = (stampSideToggle % 2 === 1) ? 420 : 140;
+      stampSideToggle++;
+      sketchCtx.save();
+      if (type === "bottle") {
+        sketchCtx.strokeStyle = "#334155"; sketchCtx.lineWidth = 3;
+        sketchCtx.beginPath(); sketchCtx.moveTo(centerX - 55, 75); sketchCtx.lineTo(centerX - 55, 225); sketchCtx.lineTo(centerX + 55, 225); sketchCtx.lineTo(centerX + 55, 75); sketchCtx.stroke();
+      } else if (type === "lid") {
+        sketchCtx.fillStyle = "#0f766e"; sketchCtx.fillRect(centerX - 62, 62, 124, 14);
+      } else if (type === "nail") {
+        sketchCtx.strokeStyle = "#475569"; sketchCtx.lineWidth = 6;
+        sketchCtx.beginPath(); sketchCtx.moveTo(centerX - 30, 202); sketchCtx.lineTo(centerX + 30, 175); sketchCtx.stroke();
+      } else if (type === "water") {
+        sketchCtx.fillStyle = "rgba(56, 189, 248, 0.35)"; sketchCtx.fillRect(centerX - 52, 135, 104, 87);
+      } else if (type === "oil") {
+        sketchCtx.fillStyle = "rgba(250, 204, 21, 0.85)"; sketchCtx.fillRect(centerX - 52, 118, 104, 17);
+      } else if (type === "dots") {
+        sketchCtx.fillStyle = "#f59e0b";
+        for (let i = -40; i <= 40; i += 16) { sketchCtx.beginPath(); sketchCtx.arc(centerX + i, 214, 5, 0, Math.PI * 2); sketchCtx.fill(); }
+      }
+      sketchCtx.restore();
+    }
+
+    function addTextToCanvas() {
+      const txt = prompt("請輸入要在設計圖上標示的文字（例如：自來水、冷開水、植物油、乾燥劑、瓶蓋）：");
+      if (!txt || !sketchCtx) return;
+      const x = (stampSideToggle % 2 === 1) ? 380 : 100;
+      const y = 115 + ((stampSideToggle * 22) % 90);
+      stampSideToggle++;
+      sketchCtx.save();
+      sketchCtx.fillStyle = "#1e293b";
+      sketchCtx.font = "bold 14px 'Noto Sans TC', sans-serif";
+      sketchCtx.fillText(txt, x, y);
+      sketchCtx.restore();
+    }
+
+    function switchDrawingTab(mode) {
+      const btnCanvas = document.getElementById("tabBtnCanvas");
+      const btnPhoto = document.getElementById("tabBtnPhoto");
+      const paneCanvas = document.getElementById("tabPaneCanvas");
+      const panePhoto = document.getElementById("tabPanePhoto");
+      if (mode === "canvas") {
+        btnCanvas.className = "px-3 py-1.5 rounded-md bg-sky-600 text-white shadow-sm transition";
+        btnPhoto.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition";
+        paneCanvas.classList.remove("hidden"); panePhoto.classList.add("hidden");
+      } else {
+        btnPhoto.className = "px-3 py-1.5 rounded-md bg-sky-600 text-white shadow-sm transition";
+        btnCanvas.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition";
+        panePhoto.classList.remove("hidden"); paneCanvas.classList.add("hidden");
+      }
+    }
+
+    async function submitCanvasDrawing() {
+      const canvas = document.getElementById("sketchCanvas");
+      currentDrawingBase64 = canvas.toDataURL("image/jpeg", 0.75);
+      await submitDrawingToCloud();
+    }
+
+    async function submitDrawingToCloud() {
+      if (!currentDrawingBase64) return;
+      const statusMsg = document.getElementById("uploadStatusMsg");
+      const btnPhoto = document.getElementById("uploadDrawingBtn");
+      const btnCanvas = document.getElementById("submitCanvasBtn");
+      if (btnPhoto) btnPhoto.disabled = true;
+      if (btnCanvas) btnCanvas.disabled = true;
+
+      statusMsg.textContent = "⏳ 正在把小組實驗設計圖上傳至雲端...";
+      statusMsg.className = "text-xs font-bold text-center mt-2 text-sky-700";
+
+      saveToLocalBackup(null, currentDrawingBase64, "");
+      lastFetchTime = 0;
+
+      try {
+        const res = await fetch(getGasUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "uploadDrawing",
+            className: currentClass,
+            groupId: currentGroupId,
+            studentId: currentGroupId,
+            drawingBase64: currentDrawingBase64
+          })
+        });
+        const data = await res.json();
+        if (data.status !== "success") throw new Error(data.message || "上傳失敗");
+        statusMsg.textContent = "✅ 小組實驗設計圖已成功上傳！老師現在可以在「課堂即時監控」看到你們的狀態變成「已上傳圖片」！";
+        statusMsg.className = "text-xs font-bold text-center mt-2 text-emerald-700";
+        if (btnCanvas) {
+          btnCanvas.disabled = false;
+          btnCanvas.textContent = "🎉 已上傳（點擊可重新更新畫布）";
+        }
+      } catch (err) {
+        statusMsg.textContent = "❌ Error：雲端上傳失敗 (" + err.message + ")";
+        statusMsg.className = "text-xs font-bold text-center mt-2 text-rose-700";
+        if (btnPhoto) btnPhoto.disabled = false;
+        if (btnCanvas) btnCanvas.disabled = false;
+      }
+    }
+
+    function resetDrawingAndChecklist() {
+      document.querySelectorAll(".draw-check").forEach(cb => cb.checked = false);
+      currentDrawingBase64 = "";
+      clearChatPhoto();
+      document.getElementById("drawingFileInput").value = "";
+      document.getElementById("drawingPreviewWrapper").classList.add("hidden");
+      document.getElementById("uploadDrawingBtn").disabled = true;
+      document.getElementById("basicHelperBtn").classList.add("hidden");
+      initSketchCanvas();
+    }
+
+    function checkDrawingList() {
+      const allChecked = Array.from(document.querySelectorAll(".draw-check")).every(cb => cb.checked);
+      if (allChecked && !currentDrawingBase64) {
+        const msg = document.getElementById("uploadStatusMsg");
+        msg.textContent = "🌟 你們已勾選所有檢查重點！現在請在右方電子畫板畫圖或拍照上傳吧！";
+        msg.className = "text-xs font-bold text-center mt-2 text-emerald-700";
+      }
+    }
+
+    /******************************************************************
+     * 6. 小組登入與介面切換
+     ******************************************************************/
+    window.addEventListener("DOMContentLoaded", () => {
+      setupCanvasEvents();
+    });
+
+    function startSession() {
+      const cls = document.getElementById("classSelect").value;
+      const gid = document.getElementById("groupSelect").value;
+      if (!cls || !gid) {
+        alert("請先選擇你們的「班別」與「組別」！🤗");
+        return;
+      }
+
+      currentClass = cls;
+      currentGroupId = gid;
+      usedTurns = 0;
+      isSessionDone = false;
+      chatHistory = [];
+      resetDrawingAndChecklist();
+
+      const gName = formatGroupName(currentGroupId);
+      document.getElementById("scriptGroupInfo").textContent = `${currentClass} 班 ${gName}`;
+
+      const badge = document.getElementById("groupBadge");
+      badge.textContent = `${currentClass} 班 - ${gName}`;
+      badge.classList.remove("hidden");
+
+      document.getElementById("loginView").classList.add("hidden");
+      document.getElementById("teacherView").classList.add("hidden");
+      document.getElementById("chatView").classList.remove("hidden");
+
+      updateTurnUI();
+      document.getElementById("chatContainer").innerHTML = "";
+      appendAdvisorWelcome();
+    }
+
+    function logoutGroup() {
+      stopAllSpeech();
+      document.getElementById("chatView").classList.add("hidden");
+      document.getElementById("groupBadge").classList.add("hidden");
+      document.getElementById("loginView").classList.remove("hidden");
+    }
+
+    function updateTurnUI(designStatus) {
+      const remain = Math.max(0, MAX_TURNS - usedTurns);
+      const badge = document.getElementById("turnBadge");
+      badge.textContent = `剩餘提問機會：${remain} / ${MAX_TURNS} 次`;
+
+      if (isSessionDone || remain === 0) {
+        badge.className = "bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full text-sm font-bold";
+        document.getElementById("inputArea").classList.add("hidden");
+        document.getElementById("completedBanner").classList.remove("hidden");
+        renderEvolutionComparison();
+        initSketchCanvas();
+
+        const banner = document.getElementById("finalGuidanceBanner");
+        if (designStatus === "rigorous") {
+          banner.className = "bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl p-3 text-sm font-bold";
+          banner.textContent = "✅ 你們組的 A 組與 B 組設置非常合理！請在下方電子畫板或紙本工作紙畫出最終設計圖並提交。";
+        } else {
+          banner.className = "bg-amber-100 border border-amber-300 text-amber-900 rounded-xl p-3 text-sm font-bold";
+          banner.textContent = "❓ 3 次線上討論已完成！請看上方陳博士留給你們組的「思考提問」與「演進對比圖」，在下方畫設計圖時把漏洞修正過來！";
+        }
+      } else {
+        badge.className = "bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1 rounded-full text-sm font-bold";
+        document.getElementById("inputArea").classList.remove("hidden");
+        document.getElementById("completedBanner").classList.add("hidden");
+      }
+    }
+
+    function appendAdvisorWelcome() {
+      const gName = formatGroupName(currentGroupId);
+      const container = document.getElementById("chatContainer");
+      const div = document.createElement("div");
+      div.className = "flex items-start gap-3";
+      const welcomeSpeech = `你好呀，${currentClass}班${gName}嘅同學！我係你哋嘅科學實驗顧問陳博士。你可以直接打字、講廣東話，或者撳「拍圖提問」影低你哋嘅實驗草圖俾我睇！話俾我聽，你哋嘅 A 組同 B 組打算點樣擺放鐵釘呢？`;
+      div.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-sky-700 text-white flex items-center justify-center text-xl shrink-0 shadow">👨‍🔬</div>
+        <div class="bg-sky-50 border border-sky-200 rounded-2xl rounded-tl-none p-4 max-w-2xl text-slate-800 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <p class="font-bold text-sky-900">你好，${currentClass} 班 ${gName} 同學！我是實驗顧問陳博士。</p>
+            <button type="button" onclick="speakCantonese('${welcomeSpeech}', this)"
+              class="text-xs bg-sky-700 hover:bg-sky-800 text-white px-3 py-1 rounded-full font-bold shadow-sm transition">
+              🔊 雲龍男聲朗讀 (廣東話)
+            </button>
+          </div>
+          <p class="text-sm leading-relaxed">
+            請小組討論後，用<strong>📷 拍圖提問、語音或打字</strong>告訴我：<br/>
+            👉 <strong>你們的「A 組」和「B 組」打算怎樣擺放鐵釘？</strong>（我可以閱讀你們拍下的設計圖，並給予即時回饋！）
+          </p>
+        </div>`;
+      container.appendChild(div);
+    }
+
+    /******************************************************************
+     * 7. 發送對話（支援純文字／純相片／相片＋文字，含 Error 錯誤提示）
+     ******************************************************************/
+    async function sendStudentMessage() {
+      if (isSessionDone || usedTurns >= MAX_TURNS) return;
+      const inputEl = document.getElementById("userInput");
+      let text = inputEl.value.trim();
+      const attachedImg = pendingChatImageBase64;
+
+      if (!text && !attachedImg) return;
+      if (!text && attachedImg) {
+        text = "陳博士，請看看我們拍下的實驗設計圖，給我們回饋！";
+      }
+
+      stopAllSpeech();
+      inputEl.value = "";
+      clearChatPhoto();
+      setLoadingState(true, Boolean(attachedImg));
+      appendStudentBubble(text, attachedImg);
+
+      const attemptingTurn = usedTurns + 1;
+      const matchedBadWord = checkLocalProfanity(text);
+
+      try {
+        const res = await fetch(getGasUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "chat",
+            className: currentClass,
+            groupId: currentGroupId,
+            studentId: currentGroupId,
+            turnCount: attemptingTurn,
+            message: text,
+            imageBase64: attachedImg || "",
+            history: chatHistory
+          })
+        });
+        const data = await res.json();
+        if (data.status !== "success") throw new Error(data.message || "無法連接後端 API");
+        const aiData = data.aiData;
+
+        if (matchedBadWord && !aiData.isInappropriate) {
+          aiData.isInappropriate = true;
+          aiData.isOffTopic = true;
+          aiData.advisorReply = "⚠️ 請注意你們的用語！在科學課堂與使用 AI 學習時，需要保持有禮貌和尊重的態度。這句話已記錄並通知老師，請重新用恰當的語言描述實驗設計。";
+          aiData.cantoneseSpeechText = "同學，請注意你哋嘅用語呀！喺科學課堂同埋用 AI 學習嗰陣，我哋要保持有禮貌同尊重嘅態度。呢句說話已經記錄低同埋通知咗老師，請你哋重新用恰當嘅語言講吓實驗設計啦。";
+          aiData.inappropriateAnalysis = `【違規類型：不雅或攻擊性字眼】小組使用了不當字詞「${matchedBadWord}」。建議老師課後提醒網絡禮儀。`;
+        }
+
+        usedTurns = data.effectiveTurn;
+        chatHistory = data.updatedHistory;
+        lastFetchTime = 0;
+
+        const timeStr = new Date().toLocaleTimeString("zh-HK", { hour12: false });
+        let newInappropriateEntry = "";
+        if (aiData.isInappropriate) {
+          newInappropriateEntry = `[${timeStr}] 小組原話：「${text}」\n🤖 教師AI分析：${aiData.inappropriateAnalysis || "偵測到不恰當課堂用語，建議老師跟進提醒。"}`;
+        }
+        saveToLocalBackup(aiData.designStatus, currentDrawingBase64, newInappropriateEntry);
+
+        if (aiData.studentLevel === "basic") {
+          document.getElementById("basicHelperBtn").classList.remove("hidden");
+        }
+
+        appendAdvisorBubble(aiData, data.visionSummary || "");
+        if (aiData.designStatus === "rigorous" || usedTurns >= MAX_TURNS) {
+          isSessionDone = true;
+        }
+        updateTurnUI(aiData.designStatus);
+      } catch (err) {
+        const msg = String(err.message || err);
+        appendErrorBubble(msg.includes("Error") ? ("❌ " + msg) : ("❌ Error：" + msg));
+      } finally {
+        setLoadingState(false, false);
+      }
+    }
+
+    function appendStudentBubble(text, imgBase64 = "") {
+      const container = document.getElementById("chatContainer");
+      const div = document.createElement("div");
+      div.className = "flex items-start justify-end gap-3";
+      const imgHtml = imgBase64
+        ? `<img src="${imgBase64}" alt="小組上傳相片" class="max-h-48 rounded-xl border border-sky-400 bg-white mb-2 object-contain" />`
+        : "";
+      div.innerHTML = `
+        <div class="bg-sky-600 text-white rounded-2xl rounded-tr-none px-4 py-3 max-w-xl shadow-sm">
+          <p class="text-xs text-sky-100 mb-1">${currentClass} 班 ${formatGroupName(currentGroupId)}</p>
+          ${imgHtml}
+          <p class="text-base leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
+        </div>`;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendAdvisorBubble(aiData, visionSummary = "") {
+      const container = document.getElementById("chatContainer");
+      const div = document.createElement("div");
+      div.className = "flex items-start gap-3";
+
+      if (aiData.isInappropriate) {
+        const speechText = (aiData.cantoneseSpeechText || aiData.advisorReply || "").replace(/['"\n]/g, " ");
+        div.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center text-xl shrink-0 shadow">🚨</div>
+          <div class="bg-rose-50 border-2 border-rose-300 rounded-2xl rounded-tl-none p-4 max-w-2xl text-slate-800 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <p class="text-sm font-bold text-rose-800">🚨 課堂禮儀與適當用語提醒（系統已記錄並通知老師）</p>
+              <button type="button" onclick="speakCantonese('${escapeHtml(speechText)}', this)"
+                class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-full font-bold shadow-sm transition">
+                🔊 雲龍男聲朗讀 (廣東話)
+              </button>
+            </div>
+            <p class="text-base text-rose-950 font-medium leading-relaxed">${escapeHtml(aiData.advisorReply)}</p>
+          </div>`;
+      } else if (aiData.isOffTopic) {
+        const speechText = (aiData.cantoneseSpeechText || aiData.advisorReply || "").replace(/['"\n]/g, " ");
+        div.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 shadow">⚠️</div>
+          <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl rounded-tl-none p-4 max-w-2xl text-slate-800 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <p class="text-sm font-bold text-amber-900">請回歸實驗主題（不扣除提問機會）</p>
+              <button type="button" onclick="speakCantonese('${escapeHtml(speechText)}', this)"
+                class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-full font-bold shadow-sm transition">
+                🔊 雲龍男聲朗讀 (廣東話)
+              </button>
+            </div>
+            <p class="text-base leading-relaxed">${escapeHtml(aiData.advisorReply)}</p>
+          </div>`;
+      } else {
+        const levelBadgeMap = {
+          basic: `<span class="text-[11px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-bold">🌱 基礎對照引導</span>`,
+          standard: `<span class="text-[11px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">👀 看圖思考引導</span>`,
+          advanced: `<span class="text-[11px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold">🚀 公平測試挑戰</span>`
+        };
+        const promptText = aiData.nextStepPrompt || "";
+        const isRigorous = aiData.designStatus === "rigorous";
+        const promptBoxStyle = isRigorous ? "bg-emerald-100 border-emerald-300 text-emerald-900" : "bg-amber-50 border-amber-300 text-amber-900";
+        const fullSpeechText = (aiData.cantoneseSpeechText || `${aiData.advisorReply || ""}。${aiData.predictedResult || ""}。${promptText}`).replace(/['"\n]/g, " ");
+        const svgDiagramHtml = renderVisualSpecSvg(aiData.visualSpec);
+        const visionNoteHtml = visionSummary
+          ? `<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-2.5 text-xs text-indigo-900 whitespace-pre-wrap leading-relaxed"><strong>👁️ 陳博士已閱讀你們的相片（檢查表）：</strong>\n${escapeHtml(visionSummary)}</div>`
+          : "";
+
+        div.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-sky-700 text-white flex items-center justify-center text-xl shrink-0 shadow">👨‍🔬</div>
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-3xl w-full space-y-3 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-bold text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full">第 ${usedTurns} / ${MAX_TURNS} 次討論</span>
+                ${levelBadgeMap[aiData.studentLevel] || ""}
+              </div>
+              <button type="button" onclick="speakCantonese('${escapeHtml(fullSpeechText)}', this)"
+                class="text-xs bg-sky-700 hover:bg-sky-800 text-white px-3 py-1 rounded-full font-bold shadow-sm transition">
+                🔊 雲龍男聲朗讀 (廣東話)
+              </button>
+            </div>
+            ${visionNoteHtml}
+            ${svgDiagramHtml}
+            <p class="text-sm md:text-base text-slate-800 leading-relaxed">👀 <strong>陳博士觀察：</strong>${escapeHtml(aiData.advisorReply)}</p>
+            <div class="bg-white border-l-4 border-sky-500 rounded-r-xl p-3 shadow-sm">
+              <p class="text-xs font-bold text-sky-700 mb-0.5">📊 按上方最新圖示的【預計生鏽現象】：</p>
+              <p class="text-sm font-bold text-slate-800 leading-relaxed">${escapeHtml(aiData.predictedResult)}</p>
+            </div>
+            <div class="border-2 rounded-xl p-3.5 font-bold text-sm md:text-base ${promptBoxStyle}">
+              ${isRigorous ? "🎉 " : "❓ 思考提問："}${escapeHtml(promptText)}
+            </div>
+          </div>`;
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendErrorBubble(msg) {
+      const container = document.getElementById("chatContainer");
+      const div = document.createElement("div");
+      div.className = "text-center text-xs font-bold text-rose-700 bg-rose-50 border border-rose-300 py-2.5 px-4 rounded-xl";
+      div.textContent = msg;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setLoadingState(isLoading, isReadingPhoto = false) {
+      const btn = document.getElementById("sendBtn");
+      const input = document.getElementById("userInput");
+      const photoBtn = document.getElementById("chatPhotoBtn");
+      btn.disabled = isLoading;
+      input.disabled = isLoading;
+      if (photoBtn) photoBtn.disabled = isLoading;
+      btn.textContent = isLoading ? (isReadingPhoto ? "👁️ 閱讀相片中..." : "更新示意圖中...") : "發送 ➔";
+    }
+
+    /******************************************************************
+     * 8. Web Speech API 廣東話語音輸入 (STT)
+     ******************************************************************/
+    let recognition = null;
+    let isRecording = false;
+
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRec();
+      recognition.lang = "zh-HK";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event) => {
+        const inputEl = document.getElementById("userInput");
+        inputEl.value = (inputEl.value ? inputEl.value + " " : "") + event.results[0][0].transcript;
+      };
+      recognition.onend = () => stopMicUI();
+      recognition.onerror = () => stopMicUI();
+    }
+
+    function toggleSpeech() {
+      if (!recognition) {
+        alert("此瀏覽器不支援語音輸入，請使用 Chrome / Edge / Safari 或點擊上方器材詞語。");
+        return;
+      }
+      if (isRecording) { recognition.stop(); stopMicUI(); }
+      else {
+        stopAllSpeech();
+        isRecording = true;
+        recognition.start();
+        document.getElementById("micBtn").classList.add("pulse-mic", "bg-rose-600", "text-white");
+        document.getElementById("micLabel").textContent = "聆聽中...";
+      }
+    }
+
+    function stopMicUI() {
+      isRecording = false;
+      document.getElementById("micBtn").classList.remove("pulse-mic", "bg-rose-600", "text-white");
+      document.getElementById("micLabel").textContent = "廣東話語音";
+    }
+
+    /******************************************************************
+     * 9. 教師後台：分頁切換、自動即時刷新、Dashboard 與課後 DeepSeek 分析
+     ******************************************************************/
+    function switchTeacherTab(tabName) {
+      currentTeacherTab = tabName;
+      const tabs = ["dashboard", "aiAnalysis", "drawings", "all", "inappropriate"];
+      const paneMap = {
+        dashboard: "teacherPaneDashboard",
+        aiAnalysis: "teacherPaneAiAnalysis",
+        drawings: "teacherPaneDrawings",
+        all: "teacherPaneAll",
+        inappropriate: "teacherPaneInappropriate"
+      };
+      const activeStyleMap = {
+        dashboard: "px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm transition",
+        aiAnalysis: "px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white shadow-sm transition",
+        drawings: "px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-sm transition",
+        all: "px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-white shadow-sm transition",
+        inappropriate: "px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 text-white shadow-sm transition"
+      };
+      const idleStyleMap = {
+        dashboard: "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-white transition",
+        aiAnalysis: "px-3 py-1.5 rounded-lg text-xs font-bold text-purple-800 hover:bg-white transition",
+        drawings: "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-white transition",
+        all: "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-white transition",
+        inappropriate: "px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-white transition"
+      };
+
+      tabs.forEach(t => {
+        document.getElementById(`tTab-${t}`).className = (t === tabName) ? activeStyleMap[t] : idleStyleMap[t];
+        document.getElementById(paneMap[t]).classList.toggle("hidden", t !== tabName);
+      });
+    }
+
+    function toggleAutoRefresh() {
+      const btn = document.getElementById("autoRefreshBtn");
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+        btn.textContent = "⏱️ 即時自動刷新：關";
+        btn.className = "text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-2 rounded-lg font-bold transition";
+      } else {
+        fetchTeacherRecords(true);
+        autoRefreshTimer = setInterval(() => fetchTeacherRecords(true), 15000);
+        btn.textContent = "🟢 即時自動刷新：每 15 秒";
+        btn.className = "text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition";
+      }
+    }
+
+    function openTeacherModal() {
+      document.getElementById("pwdInput").value = "";
+      document.getElementById("pwdError").classList.add("hidden");
+      document.getElementById("pwdModal").classList.remove("hidden");
+      setTimeout(() => document.getElementById("pwdInput").focus(), 100);
+    }
+
+    function closeTeacherModal() { document.getElementById("pwdModal").classList.add("hidden"); }
+
+    function verifyTeacherPwd() {
+      if (document.getElementById("pwdInput").value.trim() === TEACHER_PWD) {
+        closeTeacherModal();
+        stopAllSpeech();
+        document.getElementById("loginView").classList.add("hidden");
+        document.getElementById("chatView").classList.add("hidden");
+        document.getElementById("teacherView").classList.remove("hidden");
+        fetchTeacherRecords(false);
+      } else {
+        document.getElementById("pwdError").classList.remove("hidden");
+      }
+    }
+
+    function closeTeacherView() {
+      if (autoRefreshTimer) toggleAutoRefresh();
+      document.getElementById("teacherView").classList.add("hidden");
+      if (currentClass && currentGroupId) document.getElementById("chatView").classList.remove("hidden");
+      else document.getElementById("loginView").classList.remove("hidden");
+    }
+
+    function toggleAnonymousMode() {
+      isAnonymousMode = !isAnonymousMode;
+      const btn = document.getElementById("anonToggleBtn");
+      if (isAnonymousMode) {
+        btn.textContent = "🕵️ 匿名投映：開 (已隱藏組別)";
+        btn.className = "text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-bold transition shadow-sm";
+      } else {
+        btn.textContent = "🕵️ 匿名投映：關";
+        btn.className = "text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold transition";
+      }
+      renderTeacherViews();
+    }
+
+    function openGasConfigModal() {
+      document.getElementById("gasUrlInput").value = getGasUrl();
+      document.getElementById("gasModal").classList.remove("hidden");
+    }
+
+    function saveGasUrl() {
+      const url = document.getElementById("gasUrlInput").value.trim();
+      if (url) localStorage.setItem(GAS_URL_STORAGE_KEY, url);
+      else localStorage.removeItem(GAS_URL_STORAGE_KEY);
+      document.getElementById("gasModal").classList.add("hidden");
+      fetchTeacherRecords(true);
+    }
+
+    function saveToLocalBackup(designStatus, drawingData, newInappropriateEntry) {
+      const list = JSON.parse(localStorage.getItem("rust_local_records_v9") || "[]");
+      const idx = list.findIndex(r => r.className === currentClass && String(r.groupId) === String(currentGroupId));
+      const prevDrawing = idx >= 0 ? (list[idx].drawingBase64 || "") : "";
+      const prevStatus = idx >= 0 ? (list[idx].statusText || "🟡 進行中") : "🟡 進行中";
+      const prevInapp = idx >= 0 ? (list[idx].inappropriateLog || "") : "";
+
+      const finalDrawing = drawingData || prevDrawing;
+      const finalInapp = newInappropriateEntry ? (prevInapp ? prevInapp + "\n\n" + newInappropriateEntry : newInappropriateEntry) : prevInapp;
+
+      let statusText = prevStatus;
+      if (designStatus === "rigorous") statusText = "✅ 設計嚴謹過關";
+      else if (designStatus && usedTurns >= 3) statusText = "❓ 完成3次(帶問題畫圖)";
+      else if (designStatus) statusText = "🟡 進行中";
+
+      if (finalDrawing && !statusText.includes("已交設計圖")) statusText += " 🎨已交設計圖";
+      if (finalInapp && !statusText.includes("🚨曾用不當語言")) statusText += " 🚨曾用不當語言";
+
+      const record = {
+        timestamp: new Date().toLocaleString("zh-HK", { hour12: false }),
+        className: currentClass,
+        groupId: Number(currentGroupId),
+        studentId: Number(currentGroupId),
+        turnsUsed: usedTurns,
+        statusText: statusText,
+        history: chatHistory,
+        drawingBase64: finalDrawing,
+        inappropriateLog: finalInapp
+      };
+      if (idx >= 0) list[idx] = record;
+      else list.push(record);
+      localStorage.setItem("rust_local_records_v9", JSON.stringify(list));
+    }
+
+    async function fetchTeacherRecords(forceRefresh = false) {
+      const now = Date.now();
+      const cacheBadge = document.getElementById("cacheStatusBadge");
+
+      if (!forceRefresh && teacherRecords.length > 0 && (now - lastFetchTime < CACHE_TTL_MS)) {
+        const secAgo = Math.max(1, Math.floor((now - lastFetchTime) / 1000));
+        cacheBadge.textContent = `⚡ 使用快取 (${secAgo}秒前更新)`;
+        cacheBadge.className = "text-xs font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full";
+        renderTeacherViews();
+        return;
+      }
+
+      cacheBadge.textContent = "雲端同步中...";
+      try {
+        const res = await fetch(getGasUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "getTeacherData", password: TEACHER_PWD })
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+          teacherRecords = (data.records || []).map(r => ({
+            ...r,
+            groupId: Number(r.groupId || r.studentId || 1)
+          }));
+          lastFetchTime = Date.now();
+          cacheBadge.textContent = `☁️ 雲端已同步 (${new Date().toLocaleTimeString("zh-HK", { hour12: false })})`;
+          cacheBadge.className = "text-xs font-bold bg-sky-100 text-sky-800 px-2.5 py-0.5 rounded-full";
+          renderTeacherViews();
+          return;
+        }
+      } catch (err) {
+        console.warn("GAS 讀取失敗，改為顯示本機緩存紀錄", err);
+      }
+
+      teacherRecords = JSON.parse(localStorage.getItem("rust_local_records_v9") || "[]");
+      lastFetchTime = Date.now();
+      cacheBadge.textContent = "💻 本機緩存模式";
+      cacheBadge.className = "text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full";
+      renderTeacherViews();
+    }
+
+    function setClassFilter(cls) {
+      currentClassFilter = cls;
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        btn.className = "filter-btn bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg";
+      });
+      const activeBtn = document.getElementById(`filter-${cls}`);
+      if (activeBtn) activeBtn.className = "filter-btn bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg";
+
+      const classLabel = cls === "ALL" ? "全級 (5A–5E)" : `${cls} 班`;
+      document.getElementById("dashboardClassTitle").textContent = classLabel;
+      document.getElementById("aiTargetClassBadge").textContent = classLabel;
+      fetchTeacherRecords(false);
+    }
+
+    function analyzeGroupMisconceptions(record) {
+      const allText = (record.history || []).map(h => (h.user || "") + " " + (h.visionSummary || "")).join(" ");
+      const hasDesiccant = /(乾燥|乾躁|吸濕|防潮|吸乾)/.test(allText);
+      const hasLidOrSeal = /(蓋|密封|封住|笠住|樽蓋|塞|油)/.test(allText);
+      const historyInappLogs = (record.history || [])
+        .filter(h => h.aiParsed && h.aiParsed.isInappropriate)
+        .map(h => `[${h.time || ""}] 原話：「${h.user}」\n🤖 教師AI分析：${h.aiParsed.inappropriateAnalysis || "偵測到不恰當課堂用語"}`)
+        .join("\n\n");
+      const combinedInappLog = record.inappropriateLog || historyInappLogs || "";
+      return {
+        missingDesiccant: !hasDesiccant,
+        missingLid: !hasLidOrSeal,
+        hasInappropriate: Boolean(combinedInappLog),
+        combinedInappLog: combinedInappLog
+      };
+    }
+
+    function renderTeacherViews() {
+      let filtered = teacherRecords.slice();
+      if (currentClassFilter !== "ALL") filtered = filtered.filter(r => r.className === currentClassFilter);
+      filtered.sort((a, b) => a.className !== b.className ? a.className.localeCompare(b.className) : a.groupId - b.groupId);
+      window._currentFilteredTeacherRecords = filtered;
+
+      const totalCount = filtered.length;
+      let passedCount = 0, drawingCount = 0, noDesiccantCount = 0, noLidCount = 0, inappCount = 0;
+      filtered.forEach(r => {
+        if (String(r.statusText).includes("過關")) passedCount++;
+        if (r.drawingBase64 && r.drawingBase64.startsWith("data:image")) drawingCount++;
+        const diag = analyzeGroupMisconceptions(r);
+        if (diag.missingDesiccant) noDesiccantCount++;
+        if (diag.missingLid) noLidCount++;
+        if (diag.hasInappropriate) inappCount++;
+      });
+
+      const expectedGroups = currentClassFilter === "ALL" ? TOTAL_GROUPS * CLASSES_LIST.length : TOTAL_GROUPS;
+      document.getElementById("statTotal").textContent = `${totalCount} / ${expectedGroups} 組`;
+      document.getElementById("statTotalSub").textContent = currentClassFilter === "ALL" ? "全級進度" : `${currentClassFilter} 班共 10 組`;
+      document.getElementById("statDrawings").textContent = `${drawingCount} 組`;
+      document.getElementById("statDrawingsRate").textContent = `上傳率 ${Math.round((drawingCount / expectedGroups) * 100)}% ➔`;
+      document.getElementById("statPassed").textContent = `${passedCount} 組`;
+      document.getElementById("statPassedRate").textContent = `嚴謹過關率 ${totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0}%`;
+      document.getElementById("statNoDesiccant").textContent = `${noDesiccantCount} 組`;
+      document.getElementById("statNoDesiccantRate").textContent = `佔參與組別 ${totalCount > 0 ? Math.round((noDesiccantCount / totalCount) * 100) : 0}%`;
+      document.getElementById("statNoLid").textContent = `${noLidCount} 組`;
+      document.getElementById("statNoLidRate").textContent = `佔參與組別 ${totalCount > 0 ? Math.round((noLidCount / totalCount) * 100) : 0}%`;
+      document.getElementById("statInappropriate").textContent = `${inappCount} 組`;
+
+      renderLiveDashboard();
+
+      const tbodyAll = document.getElementById("teacherTableBody");
+      if (filtered.length === 0) {
+        tbodyAll.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">目前尚無小組對話或作品紀錄。</td></tr>`;
+      } else {
+        tbodyAll.innerHTML = filtered.map((r, index) => {
+          const diag = analyzeGroupMisconceptions(r);
+          const displayGroup = isAnonymousMode ? `🌟 小組 #${index + 1}` : formatGroupName(r.groupId);
+          const tags = [];
+          if (diag.hasInappropriate) tags.push(`<span onclick="switchTeacherTab('inappropriate')" class="cursor-pointer inline-block text-[11px] bg-rose-600 text-white px-2 py-0.5 rounded font-bold mr-1 mt-1">🚨 曾用不當語言</span>`);
+          if (diag.missingDesiccant) tags.push(`<span class="inline-block text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold mr-1 mt-1">💧 未提乾燥劑</span>`);
+          if (diag.missingLid) tags.push(`<span class="inline-block text-[11px] bg-orange-100 text-orange-800 px-2 py-0.5 rounded font-bold mt-1">🫙 未提密封/油封</span>`);
+
+          let drawingCellHtml = `<span class="text-xs text-slate-400">未上傳圖片</span>`;
+          if (r.drawingBase64 && r.drawingBase64.startsWith("data:image")) {
+            drawingCellHtml = `
+              <div class="flex flex-col items-center gap-1.5">
+                <img src="${r.drawingBase64}" alt="實驗設計圖"
+                  onclick="openDrawingLightboxByRecord('${escapeHtml(r.className)}', ${r.groupId})"
+                  class="w-32 h-24 object-contain bg-white rounded-lg border-2 border-indigo-200 shadow-sm cursor-pointer hover:scale-105 transition" />
+                <button onclick="openDrawingLightboxByRecord('${escapeHtml(r.className)}', ${r.groupId})"
+                  class="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">
+                  🔍 放大投映
+                </button>
+              </div>`;
+          }
+
+          const dialogHtml = (r.history || []).map(h => {
+            const isBad = h.aiParsed && h.aiParsed.isInappropriate;
+            return `
+              <div class="${isBad ? 'bg-rose-50 border-rose-300' : 'bg-slate-50 border-slate-200'} border rounded-lg p-2.5 mb-2">
+                <div class="text-xs font-bold ${isBad ? 'text-rose-800' : 'text-sky-800'} mb-1">[${escapeHtml(h.turn)}] 小組：${escapeHtml(h.user)}</div>
+                ${h.visionSummary ? `<div class="text-[11px] text-indigo-800 bg-indigo-50 rounded px-2 py-1 mb-1 whitespace-pre-wrap">👁️ 相片檢查表：\n${escapeHtml(h.visionSummary)}</div>` : ""}
+                <div class="text-xs text-slate-700 whitespace-pre-wrap pl-2 border-l-2 ${isBad ? 'border-rose-500' : 'border-sky-400'}">${escapeHtml(h.aiFormatted)}</div>
+              </div>`;
+          }).join("");
+
+          return `
+            <tr class="hover:bg-slate-50/80 align-top">
+              <td class="py-3 px-3 font-bold text-sky-700">${escapeHtml(r.className)}</td>
+              <td class="py-3 px-3">
+                <div class="font-bold text-slate-800">${escapeHtml(displayGroup)}</div>
+                <div class="text-[11px] text-slate-400 mt-0.5">已問 ${r.turnsUsed} / 3 次</div>
+                <div class="text-[11px] text-slate-400">${escapeHtml(r.timestamp)}</div>
+              </td>
+              <td class="py-3 px-3">
+                <div><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100">${escapeHtml(r.statusText)}</span></div>
+                <div>${tags.join("")}</div>
+              </td>
+              <td class="py-3 px-3 text-center">${drawingCellHtml}</td>
+              <td class="py-3 px-3 max-w-lg">${dialogHtml || "<span class='text-xs text-slate-400'>無對話紀錄</span>"}</td>
+            </tr>`;
+        }).join("");
+      }
+
+      const tbodyDrawings = document.getElementById("teacherDrawingsTableBody");
+      const onlyWithDrawing = document.getElementById("onlyWithDrawingCheck").checked;
+      const drawingRows = filtered.filter(r => !onlyWithDrawing || (r.drawingBase64 && r.drawingBase64.startsWith("data:image")));
+
+      if (drawingRows.length === 0) {
+        tbodyDrawings.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">目前篩選範圍內尚無小組上傳設計圖圖片。</td></tr>`;
+      } else {
+        tbodyDrawings.innerHTML = drawingRows.map((r, idx) => {
+          const displayGroup = isAnonymousMode ? `🌟 小組 #${idx + 1}` : formatGroupName(r.groupId);
+          const hasImg = r.drawingBase64 && r.drawingBase64.startsWith("data:image");
+          const validTurns = (r.history || []).filter(h => h.aiParsed && !h.aiParsed.isOffTopic && !h.aiParsed.isInappropriate);
+          const lastSummary = validTurns.length > 0 ? (validTurns[validTurns.length - 1].aiParsed.studentSummary || validTurns[validTurns.length - 1].user) : "（直接上傳設計圖）";
+          const lastPrompt = validTurns.length > 0 ? (validTurns[validTurns.length - 1].aiParsed.nextStepPrompt || "") : "";
+
+          const imgHtml = hasImg ? `
+            <div class="flex flex-col items-center gap-2">
+              <img src="${r.drawingBase64}" alt="實驗設計圖"
+                onclick="openDrawingLightboxByRecord('${escapeHtml(r.className)}', ${r.groupId})"
+                class="w-52 h-36 object-contain bg-white rounded-xl border-2 border-indigo-300 shadow cursor-pointer hover:scale-105 transition" />
+              <button onclick="openDrawingLightboxByRecord('${escapeHtml(r.className)}', ${r.groupId})"
+                class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1 rounded-lg shadow-sm">
+                🔍 全螢幕放大投映
+              </button>
+            </div>` : `<span class="text-xs text-slate-400">未上傳圖片</span>`;
+
+          return `
+            <tr class="hover:bg-indigo-50/40 align-middle">
+              <td class="py-3 px-3 font-bold text-indigo-800 text-base">${escapeHtml(r.className)}</td>
+              <td class="py-3 px-3 font-bold text-slate-800 text-base">${escapeHtml(displayGroup)}</td>
+              <td class="py-3 px-3 text-xs text-slate-500">${escapeHtml(r.timestamp)}</td>
+              <td class="py-3 px-3 text-center">${imgHtml}</td>
+              <td class="py-3 px-3 space-y-1.5">
+                <div><span class="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900">${escapeHtml(r.statusText)}</span></div>
+                <p class="text-xs text-slate-700"><strong>📝 實驗配置摘要：</strong>${escapeHtml(lastSummary)}</p>
+                ${lastPrompt ? `<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2"><strong>❓ 畫圖前最後思考問題：</strong>${escapeHtml(lastPrompt)}</p>` : ""}
+              </td>
+            </tr>`;
+        }).join("");
+      }
+
+      const tbodyInapp = document.getElementById("teacherInappropriateTableBody");
+      const inappRows = filtered.map(r => ({ r, diag: analyzeGroupMisconceptions(r) })).filter(x => x.diag.hasInappropriate);
+      if (inappRows.length === 0) {
+        tbodyInapp.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-emerald-700 font-bold">✅ 目前表現良好，沒有任何不恰當語言紀錄！</td></tr>`;
+      } else {
+        tbodyInapp.innerHTML = inappRows.map(({ r, diag }) => `
+          <tr class="bg-rose-50/50 hover:bg-rose-50 align-top">
+            <td class="py-3 px-3 font-bold text-rose-800 text-base">${escapeHtml(r.className)}</td>
+            <td class="py-3 px-3 font-bold text-slate-900 text-base">${formatGroupName(r.groupId)}</td>
+            <td class="py-3 px-3 text-xs text-slate-500">${escapeHtml(r.timestamp)}</td>
+            <td class="py-3 px-3">
+              <div class="bg-white border-l-4 border-rose-600 rounded-r-xl p-3 shadow-sm whitespace-pre-wrap text-xs text-slate-800 leading-relaxed font-medium">${escapeHtml(diag.combinedInappLog)}</div>
+            </td>
+          </tr>`).join("");
+      }
+    }
+
+    function renderLiveDashboard() {
+      const container = document.getElementById("liveDashboardGrid");
+      const targetClasses = currentClassFilter === "ALL" ? CLASSES_LIST : [currentClassFilter];
+
+      container.innerHTML = targetClasses.map(cls => {
+        const classRecords = teacherRecords.filter(r => r.className === cls);
+        const recordByGroup = {};
+        classRecords.forEach(r => { recordByGroup[r.groupId] = r; });
+
+        let uploadedCount = 0;
+        const cardsHtml = Array.from({ length: TOTAL_GROUPS }, (_, i) => {
+          const gId = i + 1;
+          const rec = recordByGroup[gId];
+          const gLabel = isAnonymousMode ? `🌟 小組 #${gId}` : formatGroupName(gId);
+
+          if (!rec) {
+            return `
+              <div class="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-3.5 flex flex-col justify-between min-h-[152px]">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-600 text-base">${gLabel}</span>
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">⚪ 未提交</span>
+                </div>
+                <div class="my-auto text-center text-xs text-slate-400 py-3">尚未開始討論</div>
+                <div class="text-[11px] text-slate-400">圖片狀態：未上傳</div>
+              </div>`;
+          }
+
+          const hasImg = Boolean(rec.drawingBase64 && rec.drawingBase64.startsWith("data:image"));
+          if (hasImg) uploadedCount++;
+          const diag = analyzeGroupMisconceptions(rec);
+          const isRigorous = String(rec.statusText).includes("過關");
+
+          const cardClass = hasImg
+            ? "rounded-2xl border-2 border-emerald-400 bg-emerald-50/60 p-3.5 flex flex-col justify-between shadow-sm hover:shadow-md transition cursor-pointer min-h-[152px]"
+            : "rounded-2xl border-2 border-amber-300 bg-amber-50/60 p-3.5 flex flex-col justify-between shadow-sm hover:shadow-md transition cursor-pointer min-h-[152px]";
+
+          const statusPill = hasImg
+            ? `<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white">🟢 已上傳圖片</span>`
+            : `<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500 text-white">🟡 未上傳圖片</span>`;
+
+          return `
+            <div onclick="openDrawingLightboxByRecord('${escapeHtml(cls)}', ${gId})" class="${cardClass}">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-slate-800 text-base">${gLabel}</span>
+                ${statusPill}
+              </div>
+
+              ${hasImg ? `
+                <div class="my-2 flex justify-center">
+                  <img src="${rec.drawingBase64}" alt="縮圖" class="h-16 w-full object-contain bg-white rounded-lg border border-emerald-200" />
+                </div>
+              ` : `
+                <div class="my-2 bg-white/80 rounded-lg p-2 border border-amber-200 text-xs text-slate-600">
+                  <div class="font-bold text-amber-800">💬 進度：已提問 ${rec.turnsUsed} / 3 次</div>
+                  <div class="text-[11px] text-slate-500 mt-0.5">${isRigorous ? "✅ 討論已過關，等待交圖" : "正在與陳博士修改設計"}</div>
+                </div>
+              `}
+
+              <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1 border-t border-black/5">
+                <span class="text-slate-500">${rec.timestamp ? rec.timestamp.split(" ")[1] || rec.timestamp : ""}</span>
+                <div class="flex items-center gap-1">
+                  ${isRigorous ? `<span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">嚴謹</span>` : ""}
+                  ${diag.hasInappropriate ? `<span class="bg-rose-600 text-white px-1.5 py-0.5 rounded font-bold">🚨語言</span>` : ""}
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+
+        return `
+          <div class="mb-5">
+            ${currentClassFilter === "ALL" ? `
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-bold text-sky-900 text-sm bg-sky-100 px-3 py-1 rounded-lg">${cls} 班（已上傳圖片：${uploadedCount} / ${TOTAL_GROUPS} 組）</h4>
+              </div>` : ""}
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${cardsHtml}</div>
+          </div>`;
+      }).join("");
+    }
+
+    /******************************************************************
+     * 10. 課後一鍵觸發 DeepSeek 分析全班對話紀錄
+     ******************************************************************/
+    async function triggerDeepSeekClassAnalysis() {
+      const btn = document.getElementById("runAiAnalysisBtn");
+      const container = document.getElementById("aiAnalysisResultContainer");
+      const targetClass = currentClassFilter;
+      const classLabel = targetClass === "ALL" ? "全級 (5A–5E)" : `${targetClass} 班`;
+
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳ DeepSeek 正在深度分析 ${classLabel} 對話紀錄...</span>`;
+      container.innerHTML = `
+        <div class="bg-purple-50 border border-purple-200 rounded-2xl p-8 text-center space-y-2">
+          <div class="text-3xl animate-bounce">🧠</div>
+          <p class="font-bold text-purple-900">正在彙整 ${classLabel} 所有組別的對話紀錄並交由 DeepSeek 進行迷思診斷...</p>
+          <p class="text-xs text-purple-700">約需 5–12 秒，將自動計算各項迷思比例並生成下一堂課前 5 分鐘回饋教案。</p>
+        </div>`;
+
+      try {
+        const res = await fetch(getGasUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "analyzeClassMisconceptions",
+            password: TEACHER_PWD,
+            className: targetClass
+          })
+        });
+        const data = await res.json();
+        if (data.status !== "success") throw new Error(data.message || "分析失敗");
+        renderAiAnalysisReport(data.report, data.stats, classLabel);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center text-rose-800">
+            <p class="font-bold">❌ Error：無法完成分析（${escapeHtml(err.message)}）</p>
+            <p class="text-xs mt-1 text-rose-600">請確認該班已有小組對話紀錄，且 GAS 專案已貼上新版 Code.gs 並重新部署。</p>
+          </div>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>✨ 一鍵重新分析 ${classLabel} 全班對話</span>`;
+      }
+    }
+
+    function renderAiAnalysisReport(report, stats, classLabel) {
+      const container = document.getElementById("aiAnalysisResultContainer");
+      const metrics = report.metrics || {};
+      const misconceptions = Array.isArray(report.commonMisconceptions) ? report.commonMisconceptions : [];
+      const feedbackSteps = Array.isArray(report.nextLesson5MinFeedback) ? report.nextLesson5MinFeedback : [];
+
+      lastAiAnalysisText =
+        `【${classLabel} 鐵釘生鏽實驗 - DeepSeek 課後迷思診斷與下堂前5分鐘回饋】\n` +
+        `參與組別：${stats.totalGroups} 組｜已上傳圖片：${stats.uploadedDrawingCount} 組\n` +
+        `• 忘記密封蓋子/油封：${metrics.missingLidRate || stats.missingLidPct + "%"}\n` +
+        `• 未放乾燥劑：${metrics.missingDesiccantRate || stats.missingDesiccantPct + "%"}\n` +
+        `• 變項控制清晰度：${metrics.variableControlClarity || "見下方分析"}\n\n` +
+        `【整體表現】\n${report.overallSummary || ""}\n\n` +
+        `【常見迷思】\n` +
+        misconceptions.map((m, i) => `${i + 1}. ${m.title}（${m.percentage || ""}｜${m.affectedGroups || ""}）：${m.explanation}\n   👉 點撥重點：${m.correctionFocus}`).join("\n") +
+        `\n\n【下一堂課前 5 分鐘回饋教案】\n` +
+        feedbackSteps.map(s => `[${s.minute}] ${s.step}：${s.script}`).join("\n");
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <p class="text-xs font-bold text-orange-800">🫙 忘記密封蓋子 / 油封比例</p>
+            <p class="text-xl font-bold text-orange-950 mt-1">${escapeHtml(metrics.missingLidRate || `${stats.missingLidPct}% (${stats.missingLidCount}/${stats.totalGroups}組)`)}</p>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p class="text-xs font-bold text-amber-800">💧 未放乾燥劑（吸濕）比例</p>
+            <p class="text-xl font-bold text-amber-950 mt-1">${escapeHtml(metrics.missingDesiccantRate || `${stats.missingDesiccantPct}% (${stats.missingDesiccantCount}/${stats.totalGroups}組)`)}</p>
+          </div>
+          <div class="bg-sky-50 border border-sky-200 rounded-xl p-4">
+            <p class="text-xs font-bold text-sky-800">⚖️ 變項控制（公平測試）清晰度</p>
+            <p class="text-base font-bold text-sky-950 mt-1">${escapeHtml(metrics.variableControlClarity || "請見下方詳細分析")}</p>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-slate-800 text-sm">📌 ${escapeHtml(classLabel)} 整體診斷摘要</h4>
+            <button onclick="copyAiReport()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg transition">
+              📋 複製整份報告與 5 分鐘講稿
+            </button>
+          </div>
+          <p class="text-sm text-slate-700 leading-relaxed">${escapeHtml(report.overallSummary || "")}</p>
+          ${report.variableControlAnalysis ? `
+            <div class="bg-sky-50/70 border-l-4 border-sky-500 rounded-r-lg p-3 text-xs text-slate-800 leading-relaxed">
+              <strong>⚖️ 公平測試與變項控制分析：</strong>${escapeHtml(report.variableControlAnalysis)}
+            </div>` : ""}
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <h4 class="font-bold text-rose-900 text-sm mb-3">🔍 全班常見迷思歸納（按嚴重程度排序）</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${misconceptions.map((m, i) => `
+              <div class="bg-rose-50/60 border border-rose-200 rounded-xl p-3.5 space-y-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                  <span class="font-bold text-rose-900 text-sm">${i + 1}. ${escapeHtml(m.title)}</span>
+                  <span class="text-xs font-bold bg-rose-600 text-white px-2 py-0.5 rounded-full">${escapeHtml(m.percentage || "")}</span>
+                </div>
+                ${m.affectedGroups ? `<p class="text-xs text-rose-700 font-bold">👥 涉及組別：${escapeHtml(m.affectedGroups)}</p>` : ""}
+                <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(m.explanation || "")}</p>
+                <div class="bg-white rounded-lg p-2 border border-rose-100 text-xs text-emerald-900 font-medium">
+                  💡 <strong>點撥焦點：</strong>${escapeHtml(m.correctionFocus || "")}
+                </div>
+              </div>`).join("") || "<p class='text-xs text-slate-400'>暫無明顯迷思。</p>"}
+          </div>
+        </div>
+
+        <div class="bg-emerald-50/80 border-2 border-emerald-300 rounded-2xl p-4 md:p-5 shadow-sm">
+          <h4 class="font-bold text-emerald-950 text-base mb-3">⏱️ 下一堂課前 5 分鐘回饋教案（可直接上課使用）</h4>
+          <div class="space-y-2.5">
+            ${feedbackSteps.map(s => `
+              <div class="bg-white border border-emerald-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-start gap-2.5">
+                <span class="shrink-0 bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg">${escapeHtml(s.minute || "")}</span>
+                <div class="space-y-0.5">
+                  <p class="text-sm font-bold text-emerald-900">${escapeHtml(s.step || "")}</p>
+                  <p class="text-xs md:text-sm text-slate-700 leading-relaxed">${escapeHtml(s.script || "")}</p>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>`;
+    }
+
+    function copyAiReport() {
+      if (!lastAiAnalysisText) return;
+      navigator.clipboard.writeText(lastAiAnalysisText).then(() => {
+        alert("✅ 已複製整份 DeepSeek 迷思分析報告與「下一堂前 5 分鐘回饋教案」！");
+      });
+    }
+
+    function openDrawingLightboxByRecord(className, groupId) {
+      const rec = teacherRecords.find(r => r.className === className && Number(r.groupId) === Number(groupId));
+      if (!rec) return;
+
+      const displayGroup = isAnonymousMode ? `🌟 匿名小組` : formatGroupName(rec.groupId);
+      document.getElementById("lightboxTitle").textContent = `🎨 小組實驗設計圖與對話紀錄：${className} 班 — ${displayGroup}`;
+
+      const imgEl = document.getElementById("lightboxImg");
+      const noImgEl = document.getElementById("lightboxNoImgMsg");
+      if (rec.drawingBase64 && rec.drawingBase64.startsWith("data:image")) {
+        imgEl.src = rec.drawingBase64;
+        imgEl.classList.remove("hidden");
+        noImgEl.classList.add("hidden");
+      } else {
+        imgEl.src = "";
+        imgEl.classList.add("hidden");
+        noImgEl.classList.remove("hidden");
+      }
+
+      document.getElementById("lightboxDialog").innerHTML = (rec.history || []).map(h => `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div class="text-xs font-bold text-sky-800 mb-1">[${escapeHtml(h.turn)}] 小組想法：${escapeHtml(h.user)}</div>
+          ${h.visionSummary ? `<div class="text-[11px] text-indigo-800 bg-indigo-50 rounded px-2 py-1 mb-1 whitespace-pre-wrap">👁️ 相片檢查表：\n${escapeHtml(h.visionSummary)}</div>` : ""}
+          <div class="text-xs text-slate-700 whitespace-pre-wrap pl-2 border-l-2 border-sky-500 leading-relaxed">${escapeHtml(h.aiFormatted)}</div>
+        </div>`).join("") || "<p class='text-xs text-slate-400'>無對話紀錄</p>";
+
+      document.getElementById("drawingLightboxModal").classList.remove("hidden");
+    }
+
+    function closeDrawingLightbox() {
+      document.getElementById("drawingLightboxModal").classList.add("hidden");
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+</html>
